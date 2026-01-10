@@ -21,6 +21,17 @@ const JobSettings = sequelize.define('JobSettings', {
             key: 'id',
         },
     },
+    // Personal Information
+    fullName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: 'User full name for job applications',
+    },
+    contactNumber: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        comment: 'Contact number for job applications',
+    },
     // Naukri Credentials
     naukriEmail: {
         type: DataTypes.STRING,

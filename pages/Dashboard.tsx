@@ -222,6 +222,8 @@ const Dashboard: React.FC = () => {
 
   // Local state for config form
   const [configForm, setConfigForm] = useState(user.config || {
+    fullName: '',
+    contactNumber: '',
     naukriUsername: '',
     naukriPassword: '',
     targetRole: '',
@@ -243,6 +245,8 @@ const Dashboard: React.FC = () => {
   // Calculate Job Profile completion percentage - ALL fields are compulsory
   const calculateProfileCompletion = () => {
     const requiredFields = [
+      configForm.fullName,              // Full Name
+      configForm.contactNumber,         // Contact Number
       configForm.naukriUsername,        // Naukri Email
       configForm.naukriPassword,        // Naukri Password
       configForm.resumeName,            // Resume
@@ -358,6 +362,8 @@ const Dashboard: React.FC = () => {
     try {
       // Map frontend field names to backend field names
       const settingsData = {
+        fullName: configForm.fullName,
+        contactNumber: configForm.contactNumber,
         naukriEmail: configForm.naukriUsername,
         naukriPassword: configForm.naukriPassword,
         targetRole: configForm.targetRole,
@@ -663,6 +669,8 @@ const Dashboard: React.FC = () => {
       if (result) {
         // Map backend field names to frontend form state
         setConfigForm({
+          fullName: result.fullName || '',
+          contactNumber: result.contactNumber || '',
           naukriUsername: result.naukriEmail || '',
           naukriPassword: result.naukriPassword || '',
           targetRole: result.targetRole || '',
@@ -1258,6 +1266,49 @@ const Dashboard: React.FC = () => {
 
             <div className="bg-dark-800 border border-white/10 rounded-2xl p-8">
               <form onSubmit={handleSaveConfig} className="space-y-6">
+
+                {/* Personal Information Section */}
+                <div className="bg-dark-900/50 p-6 rounded-xl border border-gray-700">
+                  <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                    <User className="text-neon-purple w-5 h-5" /> Personal Information
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-1">
+                        Full Name <span className="text-red-400">*</span>
+                      </label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                        <input
+                          type="text"
+                          value={configForm.fullName || ''}
+                          onChange={(e) => setConfigForm({ ...configForm, fullName: e.target.value })}
+                          className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white text-sm focus:border-neon-blue outline-none"
+                          placeholder="Enter your full name"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-1">
+                        Contact Number <span className="text-red-400">*</span>
+                      </label>
+                      <div className="relative">
+                        <svg className="absolute left-3 top-3 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <input
+                          type="tel"
+                          value={configForm.contactNumber || ''}
+                          onChange={(e) => setConfigForm({ ...configForm, contactNumber: e.target.value })}
+                          className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white text-sm focus:border-neon-blue outline-none"
+                          placeholder="+91 9876543210"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* HIGH PRIORITY: Naukri Credentials Section */}
                 <div className="bg-gradient-to-r from-neon-blue/10 via-neon-purple/10 to-neon-blue/10 p-6 rounded-xl border-2 border-neon-blue/30 shadow-lg shadow-neon-blue/20">
