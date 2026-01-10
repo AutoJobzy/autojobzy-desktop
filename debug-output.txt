@@ -1,0 +1,111 @@
+🔍 Inspecting Naukri login page...
+
+📄 Navigating to Naukri login page...
+✅ Page loaded!
+
+📋 Found Input Fields:
+
+================================================================================
+
+Input 1:
+  ID:          N/A
+  Name:        N/A
+  Type:        text
+  Placeholder: Enter keyword / designation / companies
+  Class:       suggestor-input 
+
+Input 2:
+  ID:          experienceDD
+  Name:        experienceDD
+  Type:        text
+  Placeholder: Select experience
+  Class:       ddInput nonSearched
+
+Input 3:
+  ID:          N/A
+  Name:        N/A
+  Type:        text
+  Placeholder: Enter location
+  Class:       suggestor-input 
+
+Input 4:
+  ID:          usernameField
+  Name:        N/A
+  Type:        text
+  Placeholder: Enter Email ID / Username
+  Class:       N/A
+
+Input 5:
+  ID:          passwordField
+  Name:        N/A
+  Type:        password
+  Placeholder: Enter Password
+  Class:       pr-60
+
+================================================================================
+
+🔍 Testing Common Selectors:
+
+✅ Found: #usernameField
+   → {
+  "selector": "input#usernameField",
+  "id": "usernameField",
+  "name": "",
+  "type": "text",
+  "placeholder": "Enter Email ID / Username"
+}
+✅ Found: #passwordField
+   → {
+  "selector": "input#passwordField.pr-60",
+  "id": "passwordField",
+  "name": "",
+  "type": "password",
+  "placeholder": "Enter Password"
+}
+✅ Found: input[type="text"]
+   → {
+  "selector": "input.suggestor-input.",
+  "id": "",
+  "name": "",
+  "type": "text",
+  "placeholder": "Enter keyword / designation / companies"
+}
+✅ Found: input[type="password"]
+   → {
+  "selector": "input#passwordField.pr-60",
+  "id": "passwordField",
+  "name": "",
+  "type": "password",
+  "placeholder": "Enter Password"
+}
+✅ Found: input[placeholder*="Email"]
+   → {
+  "selector": "input#usernameField",
+  "id": "usernameField",
+  "name": "",
+  "type": "text",
+  "placeholder": "Enter Email ID / Username"
+}
+✅ Found: input[placeholder*="Username"]
+   → {
+  "selector": "input#usernameField",
+  "id": "usernameField",
+  "name": "",
+  "type": "text",
+  "placeholder": "Enter Email ID / Username"
+}
+✅ Found: input[placeholder*="Password"]
+   → {
+  "selector": "input#passwordField.pr-60",
+  "id": "passwordField",
+  "name": "",
+  "type": "password",
+  "placeholder": "Enter Password"
+}
+
+📸 Screenshot saved: naukri-login-page.png
+
+⏸️  Browser will stay open for 30 seconds for manual inspection...
+   You can inspect the page elements manually.
+
+✅ Done! Check the output above to find the correct selectors.

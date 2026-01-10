@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Razorpay Quick Test</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+        }
+
+        button {
+            background: linear-gradient(to right, #6366f1, #9333ea);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .log {
+            background: #1a1a1a;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log div {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #6366f1;
+            padding-left: 10px;
+        }
+
+        .success {
+            border-left-color: #10b981;
+        }
+
+        .error {
+            border-left-color: #ef4444;
+        }
+
+        .info {
+            border-left-color: #3b82f6;
+        }
+
+        h1 {
+            color: #6366f1;
+        }
+
+        h2 {
+            color: #9333ea;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            margin-left: 10px;
+            font-size: 14px;
+        }
+
+        .status.ok {
+            background: #10b981;
+        }
+
+        .status.fail {
+            background: #ef4444;
+        }
+
+        .input-group {
+            margin: 15px 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #9ca3af;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            background: #1a1a1a;
+            border: 2px solid #444;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🔐 Razorpay Integration Test</h1>
+        <p>This page tests your Razorpay integration step by step.</p>
+
+        <h2>Step 1: Test Backend Connection</h2>
+        <button onclick="testBackend()">Test Backend API</button>
+        <button onclick="testPlans()">Load Plans</button>
+
+        <h2>Step 2: Login (Get Token)</h2>
+        <div class="input-group">
+            <label>Email:</label>
+            <input type="email" id="email" value="test@example.com" placeholder="Enter your email">
+        </div>
+        <div class="input-group">
+            <label>Password:</label>
+            <input type="password" id="password" value="Test123!@#" placeholder="Enter your password">
+        </div>
+        <button onclick="login()">Login</button>
+        <button onclick="testAuth()">Test Token</button>
+
+        <h2>Step 3: Create Order & Pay</h2>
+        <button onclick="createOrder()">Create Order</button>
+        <button onclick="openRazorpay()">Open Razorpay Modal</button>
+
+        <h2>📊 Console Logs</h2>
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://api.autojobzy.com/api';
+        let currentToken = null;
+        let currentOrder = null;
+        let currentPlanId = '133ac33b-4c1c-4488-a764-33b3c75213bd'; // Starter plan
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        async function testBackend() {
+            try {
+                log('Testing backend health...', 'info');
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                log(`✅ Backend is UP: ${JSON.stringify(data)}`, 'success');
+            } catch (error) {
+                log(`❌ Backend error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPlans() {
+            try {
+                log('Fetching plans...', 'info');
+                const response = await fetch(`${API_BASE}/subscription/plans`);
+                const data = await response.json();
+                if (data.success) {
+                    log(`✅ Loaded ${data.data.length} plans`, 'success');
+                    data.data.forEach(plan => {
+                        log(`  - ${plan.name}: ₹${plan.price} for ${plan.durationDays} days`, 'info');
+                    });
+                } else {
+                    log(`❌ Failed to load plans: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Error loading plans: ${error.message}`, 'error');
+            }
+        }
+
+        async function login() {
+            try {
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                log(`Logging in as ${email}...`, 'info');
+
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.token) {
+                    currentToken = data.token;
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    log(`✅ Login successful! Token: ${data.token.substring(0, 20)}...`, 'success');
+                    log(`   User: ${data.user.firstName} ${data.user.lastName}`, 'success');
+                } else {
+                    log(`❌ Login failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Login error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAuth() {
+            try {
+                if (!currentToken) {
+                    currentToken = localStorage.getItem('token');
+                }
+
+                if (!currentToken) {
+                    log('❌ No token found. Please login first.', 'error');
+                    return;
+                }
+
+                log('Testing authentication...', 'info');
+
+                const response = await fetch(`${API_BASE}/subscription/status`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    log('✅ Token is valid!', 'success');
+                    log(`   Has subscription: ${data.data.hasActiveSubscription}`, 'info');
+                } else {
+                    log(`❌ Token validation failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Auth test error: ${error.message}`, 'error');
+            }
+        }
+
+        async function createOrder() {
+            try {
+                if (!currentToken) {
+                    currentToken = localStorage.getItem('token');
+                }
+
+                if (!currentToken) {
+                    log('❌ No token found. Please login first.', 'error');
+                    return;
+                }
+
+                log('Creating Razorpay order...', 'info');
+                log(`  Plan ID: ${currentPlanId}`, 'info');
+
+                const response = await fetch(`${API_BASE}/subscription/create-order`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({ planId: currentPlanId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    currentOrder = data.data;
+                    log('✅ Order created successfully!', 'success');
+                    log(`   Order ID: ${currentOrder.orderId}`, 'info');
+                    log(`   Amount: ₹${currentOrder.amount / 100}`, 'info');
+                    log(`   Key ID: ${currentOrder.keyId}`, 'info');
+                    log(`   Plan: ${currentOrder.planName}`, 'info');
+                    log('👉 Now click "Open Razorpay Modal" to test payment', 'success');
+                } else {
+                    log(`❌ Order creation failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Create order error: ${error.message}`, 'error');
+            }
+        }
+
+        async function openRazorpay() {
+            try {
+                if (!currentOrder) {
+                    log('❌ No order found. Please create an order first.', 'error');
+                    return;
+                }
+
+                log('Opening Razorpay payment modal...', 'info');
+
+                const options = {
+                    key: currentOrder.keyId,
+                    amount: currentOrder.amount,
+                    currency: currentOrder.currency,
+                    name: 'JobAutoApply',
+                    description: currentOrder.planName,
+                    order_id: currentOrder.orderId,
+                    handler: async function (response) {
+                        log('✅ Payment completed!', 'success');
+                        log(`   Payment ID: ${response.razorpay_payment_id}`, 'info');
+                        log(`   Order ID: ${response.razorpay_order_id}`, 'info');
+                        log('Verifying payment...', 'info');
+
+                        // Verify payment
+                        const verifyResponse = await fetch(`${API_BASE}/subscription/verify-payment`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${currentToken}`
+                            },
+                            body: JSON.stringify({
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature
+                            })
+                        });
+
+                        const verifyData = await verifyResponse.json();
+
+                        if (verifyData.success) {
+                            log('✅ Payment verified successfully!', 'success');
+                            log(`   Subscription ID: ${verifyData.data.subscriptionId}`, 'info');
+                            log(`   Status: ${verifyData.data.status}`, 'info');
+                            log(`   End Date: ${verifyData.data.endDate}`, 'info');
+                        } else {
+                            log(`❌ Payment verification failed: ${verifyData.error}`, 'error');
+                        }
+                    },
+                    prefill: {
+                        name: 'Test User',
+                        email: document.getElementById('email').value,
+                    },
+                    theme: {
+                        color: '#6366f1'
+                    },
+                    modal: {
+                        ondismiss: function () {
+                            log('⚠️ Payment modal closed by user', 'error');
+                        }
+                    }
+                };
+
+                log('Razorpay modal configuration ready', 'info');
+                log('Creating Razorpay instance...', 'info');
+
+                const razorpay = new Razorpay(options);
+
+                razorpay.on('payment.failed', function (response) {
+                    log('❌ Payment failed!', 'error');
+                    log(`   Error: ${response.error.description}`, 'error');
+                    log(`   Code: ${response.error.code}`, 'error');
+                });
+
+                log('Opening modal...', 'success');
+                razorpay.open();
+
+            } catch (error) {
+                log(`❌ Razorpay error: ${error.message}`, 'error');
+                log(`   Stack: ${error.stack}`, 'error');
+            }
+        }
+
+        // Auto-check on page load
+        window.addEventListener('load', () => {
+            log('🚀 Test page loaded', 'success');
+            log('Razorpay SDK version: ' + (window.Razorpay ? 'Loaded ✅' : 'Not loaded ❌'),
+                window.Razorpay ? 'success' : 'error');
+
+            // Check if token exists
+            const token = localStorage.getItem('token');
+            if (token) {
+                currentToken = token;
+                log('Found existing token in localStorage', 'info');
+            }
+        });
+    </script>
+</body>
+
+</html>

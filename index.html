@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoJobzy - AI Job Application Assistant</title>
+
+    <!-- Primary Meta Tags -->
+    <meta name="description" content="AutoJobzy - AI-powered job application automation for Indian job seekers. Automatically apply to Naukri, LinkedIn jobs. Save 3+ hours daily. Get 50% more interviews with smart automation." />
+    <meta name="keywords" content="job automation, Naukri automation, automatic job application, AI job search, job application assistant, LinkedIn automation India, automated job apply" />
+    <meta name="author" content="AutoJobzy" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://job-automate.onrender.com/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://job-automate.onrender.com/" />
+    <meta property="og:title" content="AutoJobzy - AI Job Application Automation for Indian Job Seekers" />
+    <meta property="og:description" content="Automate your job search on Naukri & LinkedIn. AI-powered automation applies to 50+ jobs daily. Save 3+ hours. Get 50% more interviews. Trusted by 1000+ job seekers." />
+    <meta property="og:image" content="https://job-automate.onrender.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_IN" />
+    <meta property="og:site_name" content="AutoJobzy" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://job-automate.onrender.com/" />
+    <meta name="twitter:title" content="AutoJobzy - AI Job Application Automation" />
+    <meta name="twitter:description" content="Automate your job search on Naukri & LinkedIn. Save 3+ hours daily. Get 50% more interviews with AI-powered automation." />
+    <meta name="twitter:image" content="https://job-automate.onrender.com/twitter-card.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- Additional SEO -->
+    <meta name="theme-color" content="#00f3ff" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              heading: ['Poppins', 'sans-serif'],
+              mono: ['Fira Code', 'monospace'],
+            },
+            colors: {
+              neon: {
+                blue: '#00f3ff',
+                purple: '#bc13fe',
+                green: '#0aff68',
+              },
+              dark: {
+                900: '#020617', // Slate 950 base
+                800: '#0f172a',
+                700: '#1e293b',
+              }
+            },
+            animation: {
+              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'float': 'float 6s ease-in-out infinite',
+              'glow': 'glow 2s ease-in-out infinite alternate',
+            },
+            keyframes: {
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-20px)' },
+              },
+              glow: {
+                'from': { boxShadow: '0 0 10px #00f3ff, 0 0 20px #00f3ff' },
+                'to': { boxShadow: '0 0 20px #00f3ff, 0 0 30px #00f3ff' },
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      /* Minimal inline styles - main theme handled by index.css */
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      /* Initial load - prevent flash */
+      body {
+        opacity: 0;
+        animation: fadeIn 0.3s ease-in forwards;
+      }
+
+      @keyframes fadeIn {
+        to {
+          opacity: 1;
+        }
+      }
+    </style>
+  <link rel="stylesheet" href="/index.css">
+
+  <!-- JSON-LD Structured Data for SEO -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "AutoJobzy",
+    "description": "AI-powered job application automation platform for Indian job seekers",
+    "url": "https://job-automate.onrender.com",
+    "logo": "https://job-automate.onrender.com/logo.png",
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "contactType": "Customer Service",
+      "email": "support@autojobzy.com",
+      "areaServed": "IN",
+      "availableLanguage": "English"
+    },
+    "sameAs": [
+      "https://twitter.com/autojobzy",
+      "https://linkedin.com/company/autojobzy"
+    ]
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "AutoJobzy",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web Browser",
+    "offers": {
+      "@type": "Offer",
+      "price": "299",
+      "priceCurrency": "INR",
+      "priceValidUntil": "2026-12-31"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.8",
+      "ratingCount": "150"
+    },
+    "featureList": [
+      "Automated job applications on Naukri.com",
+      "LinkedIn automation",
+      "AI-powered job matching",
+      "Daily application reports",
+      "Smart resume optimization"
+    ]
+  }
+  </script>
+
+  <!-- Razorpay Checkout Script -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

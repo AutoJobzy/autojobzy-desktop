@@ -1,0 +1,88 @@
+# Electron Builder Configuration
+# Defines how the Windows EXE is packaged and built
+
+appId: com.autojobzy.app
+productName: AutoJobzy
+copyright: Copyright © 2025
+
+# Directories
+directories:
+  output: dist-electron
+  buildResources: build
+
+# Files to include in the app
+files:
+  - dist/**/*
+  - electron/**/*
+  - server/**/*
+  - node_modules/**/*
+  - package.json
+  - .env
+
+# Keep asar enabled but unpack native modules and server files
+asar: true
+
+# Unpack these from asar for proper loading
+asarUnpack:
+  - "**/*.node"
+  - "**/node_modules/puppeteer/**/*"
+  - "server/**/*"
+  - "node_modules/**/*"
+  - ".env"
+
+# Extra resources (server files, etc.)
+extraResources:
+  - from: server
+    to: server
+    filter:
+      - "**/*"
+  - from: node_modules/puppeteer/.local-chromium
+    to: .local-chromium
+    filter:
+      - "**/*"
+
+# macOS-specific configuration
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+  category: public.app-category.productivity
+  artifactName: AutoJobzy-${version}-${arch}.${ext}
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+# Windows-specific configuration
+win:
+  target:
+    - target: zip
+      arch:
+        - x64
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  artifactName: AutoJobzy-${version}.${ext}
+  requestedExecutionLevel: asInvoker
+
+# NSIS Installer configuration
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: AutoJobzy
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+
+# Publish configuration (optional)
+publish: null

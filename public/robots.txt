@@ -1,0 +1,12 @@
+# AutoJobzy Robots.txt
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://job-automate.onrender.com/sitemap.xml
+
+# Crawl delay
+Crawl-delay: 1
