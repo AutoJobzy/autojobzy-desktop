@@ -33,11 +33,11 @@ const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'autojobzy-resumes';
  */
 export async function uploadResumeToS3(fileBuffer, fileName, userId, mimeType) {
   try {
-    // Generate unique file name: resumes/{userId}/{timestamp}_{originalName}
+    // Generate unique file name: autojobzy-resumes/{userId}/{timestamp}_{originalName}
     const timestamp = Date.now();
     const fileExtension = path.extname(fileName);
     const cleanFileName = path.basename(fileName, fileExtension).replace(/[^a-zA-Z0-9]/g, '_');
-    const s3Key = `resumes/${userId}/${timestamp}_${cleanFileName}${fileExtension}`;
+    const s3Key = `autojobzy-resumes/${userId}/${timestamp}_${cleanFileName}${fileExtension}`;
 
     // Upload to S3
     const upload = new Upload({
