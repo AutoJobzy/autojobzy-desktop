@@ -28,17 +28,9 @@ const AutoProfileUpdate: React.FC = () => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
 
-  // Scheduler state
-  const [schedulerEnabled, setSchedulerEnabled] = useState(false);
-  const [schedulerFrequency, setSchedulerFrequency] = useState(1);
-  const [scheduleTime, setScheduleTime] = useState('09:00');
-  const [nextScheduledRun, setNextScheduledRun] = useState<string | null>(null);
-  const [isConfiguringScheduler, setIsConfiguringScheduler] = useState(false);
-
-  // Fetch last update status and scheduler status on component mount
+  // Fetch last update status on component mount
   useEffect(() => {
     fetchLastUpdateStatus();
-    fetchSchedulerStatus();
   }, []);
 
   /**
@@ -135,74 +127,6 @@ const AutoProfileUpdate: React.FC = () => {
       });
     } finally {
       setIsUpdating(false);
-    }
-  };
-
-  /**
-   * Fetch scheduler status from backend
-   */
-  const fetchSchedulerStatus = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const response = await fetch(`${API_BASE_URL}/profile-update/scheduler/status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSchedulerEnabled(data.enabled);
-        setSchedulerFrequency(data.frequency || 1);
-        setScheduleTime(data.scheduleTime || '09:00');
-        setNextScheduledRun(data.nextRun);
-      }
-    } catch (error) {
-      console.error('Failed to fetch scheduler status:', error);
-    }
-  };
-
-  /**
-   * Handle scheduler configuration (enable/disable or change frequency)
-   */
-  const handleConfigureScheduler = async (enabled: boolean, frequency: number, time?: string) => {
-    setIsConfiguringScheduler(true);
-    const loadingToast = toast.loading(enabled ? 'Enabling auto-update...' : 'Disabling auto-update...');
-
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      const response = await fetch(`${API_BASE_URL}/profile-update/scheduler/configure`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          enabled,
-          frequency,
-          scheduleTime: time || scheduleTime
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        toast.success(data.message, { id: loadingToast });
-        setSchedulerEnabled(enabled);
-        setSchedulerFrequency(frequency);
-        setNextScheduledRun(data.nextRun);
-      } else {
-        throw new Error(data.error || 'Failed to configure auto-update');
-      }
-    } catch (error: any) {
-      toast.error(error.message, { id: loadingToast });
-    } finally {
-      setIsConfiguringScheduler(false);
     }
   };
 
@@ -369,82 +293,6 @@ const AutoProfileUpdate: React.FC = () => {
             <p>This increases your visibility in recruiter searches</p>
           </div>
         </div>
-      </div>
-
-      {/* Auto-Update Scheduler */}
-      <div className="bg-white dark:bg-dark-800 rounded-xl p-6 border border-gray-200 dark:border-white/10 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-semibold text-gray-900 dark:text-white">
-              Automatic Updates
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Schedule automatic profile updates to keep your profile fresh
-            </p>
-          </div>
-
-          {/* Toggle Switch */}
-          <button
-            onClick={() => handleConfigureScheduler(!schedulerEnabled, schedulerFrequency)}
-            disabled={isConfiguringScheduler}
-            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${schedulerEnabled ? 'bg-neon-blue' : 'bg-gray-300 dark:bg-gray-600'
-              } ${isConfiguringScheduler ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            <span
-              className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${schedulerEnabled ? 'translate-x-7' : 'translate-x-1'
-                }`}
-            />
-          </button>
-        </div>
-
-        {/* Frequency Selector (Only show when enabled) */}
-        {schedulerEnabled && (
-          <div className="mt-4 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Update Frequency
-              </label>
-              <select
-                value={schedulerFrequency}
-                onChange={(e) => handleConfigureScheduler(true, parseInt(e.target.value))}
-                disabled={isConfiguringScheduler}
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-neon-blue"
-              >
-                <option value={1}>Every day</option>
-                <option value={2}>Every 2 days</option>
-                <option value={3}>Every 3 days</option>
-                <option value={5}>Every 5 days</option>
-                <option value={7}>Every week</option>
-                <option value={14}>Every 2 weeks</option>
-                <option value={30}>Every month</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Schedule Time
-              </label>
-              <input
-                type="time"
-                value={scheduleTime}
-                onChange={(e) => setScheduleTime(e.target.value)}
-                onBlur={() => handleConfigureScheduler(true, schedulerFrequency, scheduleTime)}
-                disabled={isConfiguringScheduler}
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-neon-blue"
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Choose what time of day the update should run
-              </p>
-            </div>
-
-            {nextScheduledRun && (
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <Clock className="w-4 h-4 text-neon-blue" />
-                <span><strong>Next update:</strong> {formatDate(nextScheduledRun)}</span>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Logs (only show if there are logs) */}
