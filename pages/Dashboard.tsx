@@ -1234,14 +1234,15 @@ const Dashboard: React.FC = () => {
             {jobCards.length > 0 && (
               <div className="mt-6 space-y-3 max-h-96 overflow-y-auto">
                 <h3 className="text-gray-400 text-sm font-semibold uppercase tracking-wider px-2">Jobs Processing</h3>
-                {jobCards.map((job) => (
+                {jobCards.map((job, index) => (
                   <div
                     key={job.id}
-                    className={`bg-dark-800 border-2 rounded-xl overflow-hidden transition-all ${
+                    className={`bg-dark-800 border-2 rounded-xl overflow-hidden transition-all animate-slide-up animate-fade-in ${
                       job.status === 'Applied'
                         ? 'border-green-500/30 shadow-lg shadow-green-500/10'
                         : 'border-gray-700/30'
                     }`}
+                    style={{ animationDelay: `${index * 0.1}s` }}
                   >
                     <div className="px-5 py-4 flex items-center justify-between">
                       <div className="flex items-center gap-4 flex-1">
