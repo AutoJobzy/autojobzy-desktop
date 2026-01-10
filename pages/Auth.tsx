@@ -154,15 +154,15 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
   };
 
   return (
-    <div className="min-h-screen pt-20 flex items-center justify-center px-4 bg-gradient-to-br from-primary-50 via-white to-purple-50 relative overflow-hidden">
+    <div className="min-h-screen pt-20 flex items-center justify-center px-4 bg-dark-900 relative overflow-hidden">
       {/* Background decoration */}
-      <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-primary-100/50 rounded-full blur-[120px]"></div>
-      <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-100/50 rounded-full blur-[120px]"></div>
+      <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-neon-purple/10 rounded-full blur-[100px]"></div>
+      <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-neon-blue/10 rounded-full blur-[100px]"></div>
 
       {/* Welcome Popup Overlay */}
       {showWelcome && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-primary-200 rounded-2xl p-8 max-w-md w-full text-center shadow-2xl animate-fadeIn">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-dark-800 border border-neon-blue/50 rounded-2xl p-8 max-w-md w-full text-center shadow-[0_0_50px_rgba(0,243,255,0.2)] animate-fadeIn">
             {/* Success Icon */}
             <div className="w-20 h-20 mx-auto mb-6 relative">
               <div className="absolute inset-0 bg-neon-green/20 rounded-full animate-ping"></div>
@@ -173,37 +173,37 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
 
             {/* Welcome Text */}
             <div className="flex items-center justify-center gap-2 mb-2">
-              <Sparkles className="w-5 h-5 text-primary-500" />
-              <h2 className="text-2xl font-bold text-gray-900">
+              <Sparkles className="w-5 h-5 text-neon-blue" />
+              <h2 className="text-2xl font-bold text-white">
                 {type === 'signup' ? 'Welcome!' : 'Welcome Back!'}
               </h2>
-              <Sparkles className="w-5 h-5 text-primary-500" />
+              <Sparkles className="w-5 h-5 text-neon-blue" />
             </div>
 
-            <p className="text-xl text-primary-600 font-semibold mb-4">
+            <p className="text-xl text-neon-blue font-semibold mb-4">
               Hello, {welcomeName}!
             </p>
 
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-400 mb-6">
               {type === 'signup'
                 ? "Your account has been created successfully! Please select a subscription plan to continue..."
                 : "You've successfully logged in. Redirecting you to your dashboard..."}
             </p>
 
             {/* Loading Bar */}
-            <div className="w-full h-1 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-primary-500 to-purple-500 rounded-full animate-loadingBar"></div>
+            <div className="w-full h-1 bg-dark-900 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-neon-blue to-neon-purple rounded-full animate-loadingBar"></div>
             </div>
           </div>
         </div>
       )}
 
-      <div className="w-full max-w-md bg-white border border-gray-200 rounded-2xl p-8 shadow-2xl relative z-10">
+      <div className="w-full max-w-md bg-dark-800 border border-white/10 rounded-2xl p-8 shadow-2xl relative z-10">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-heading font-bold text-gray-900 mb-2">
+          <h2 className="text-3xl font-heading font-bold text-white mb-2">
             {type === 'login' ? 'Welcome Back' : 'Create Account'}
           </h2>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-400 text-sm">
             {type === 'login'
               ? 'Enter your credentials to access your dashboard'
               : 'Start your automation journey today'}
@@ -211,9 +211,9 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-red-700 text-sm">{error}</p>
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <p className="text-red-400 text-sm">{error}</p>
           </div>
         )}
 
@@ -229,8 +229,8 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
                   type="button"
                   onClick={() => setUserType('individual')}
                   className={`p-4 rounded-lg border-2 transition-all ${userType === 'individual'
-                    ? 'border-primary-500 bg-primary-50 text-gray-900'
-                    : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
+                    ? 'border-neon-blue bg-neon-blue/10 text-white'
+                    : 'border-gray-700 bg-dark-900 text-gray-400 hover:border-gray-600'
                     }`}
                 >
                   <UserIcon className="w-6 h-6 mx-auto mb-2" />
@@ -248,8 +248,8 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
                     }
                   }}
                   className={`p-4 rounded-lg border-2 transition-all ${userType === 'institute'
-                    ? 'border-purple-500 bg-purple-50 text-gray-900'
-                    : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
+                    ? 'border-neon-purple bg-neon-purple/10 text-white'
+                    : 'border-gray-700 bg-dark-900 text-gray-400 hover:border-gray-600'
                     }`}
                 >
                   <Building2 className="w-6 h-6 mx-auto mb-2" />
@@ -269,7 +269,7 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
                   <input
                     type="text"
                     required
-                    className="w-full bg-white border border-gray-300 rounded-lg py-3 pl-10 pr-4 text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
+                    className="w-full bg-dark-900 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:border-neon-blue focus:ring-1 focus:ring-neon-blue outline-none transition-all"
                     placeholder="John"
                     value={formData.firstName}
                     onChange={e => setFormData({ ...formData, firstName: e.target.value })}
@@ -284,7 +284,7 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
                   <input
                     type="text"
                     required
-                    className="w-full bg-white border border-gray-300 rounded-lg py-3 pl-10 pr-4 text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
+                    className="w-full bg-dark-900 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:border-neon-blue focus:ring-1 focus:ring-neon-blue outline-none transition-all"
                     placeholder="Doe"
                     value={formData.lastName}
                     onChange={e => setFormData({ ...formData, lastName: e.target.value })}
@@ -316,7 +316,7 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
               <input
                 type="password"
                 required
-                className="w-full bg-white border border-gray-300 rounded-lg py-3 pl-10 pr-4 text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none transition-all"
+                className="w-full bg-dark-900 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:border-neon-blue focus:ring-1 focus:ring-neon-blue outline-none transition-all"
                 placeholder="••••••••"
                 value={formData.password}
                 onChange={e => setFormData({ ...formData, password: e.target.value })}
@@ -326,36 +326,36 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
 
           {/* Terms & Conditions Checkbox - Only for Signup */}
           {type === 'signup' && (
-            <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
+            <div className="bg-dark-900/50 border-2 border-yellow-500/30 rounded-lg p-4">
               <label className="flex items-start gap-3 cursor-pointer group">
                 <div className="relative flex items-center justify-center mt-0.5">
                   <input
                     type="checkbox"
                     checked={acceptedTerms}
                     onChange={(e) => setAcceptedTerms(e.target.checked)}
-                    className="w-5 h-5 bg-white border-2 border-gray-300 rounded cursor-pointer checked:bg-primary-500 checked:border-primary-500 appearance-none transition-all"
+                    className="w-5 h-5 bg-dark-800 border-2 border-gray-600 rounded cursor-pointer checked:bg-neon-blue checked:border-neon-blue appearance-none transition-all"
                     required
                   />
                   {acceptedTerms && (
                     <CheckCircle className="w-4 h-4 text-white absolute pointer-events-none" />
                   )}
                 </div>
-                <span className="text-sm text-gray-700 leading-relaxed flex-1">
+                <span className="text-sm text-gray-300 leading-relaxed flex-1">
                   I accept the{' '}
                   <a
                     href="/terms"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary-600 hover:underline font-semibold"
+                    className="text-neon-blue hover:underline font-semibold"
                     onClick={(e) => e.stopPropagation()}
                   >
                     Terms and Conditions
                   </a>
-                  <span className="text-red-600 ml-1">*</span>
+                  <span className="text-red-400 ml-1">*</span>
                 </span>
               </label>
               {!acceptedTerms && (
-                <p className="text-xs text-amber-700 mt-2 flex items-center gap-1">
+                <p className="text-xs text-yellow-400 mt-2 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
                   You must accept the Terms and Conditions to continue
                 </p>
@@ -366,7 +366,7 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
           <button
             type="submit"
             disabled={loading || showWelcome || (type === 'signup' && !acceptedTerms)}
-            className="w-full bg-gradient-to-r from-primary-500 to-purple-500 text-white font-bold py-3 rounded-lg hover:from-primary-600 hover:to-purple-600 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-neon-blue text-black font-bold py-3 rounded-lg hover:bg-white transition-colors flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,243,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : (
               <>
@@ -376,11 +376,11 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
           </button>
         </form>
 
-        <div className="mt-6 text-center text-sm text-gray-600">
+        <div className="mt-6 text-center text-sm text-gray-400">
           {type === 'login' ? (
-            <>Don't have an account? <Link to="/signup" className="text-primary-600 hover:underline font-semibold">Sign up</Link></>
+            <>Don't have an account? <Link to="/signup" className="text-neon-blue hover:underline">Sign up</Link></>
           ) : (
-            <>Already have an account? <Link to="/login" className="text-primary-600 hover:underline font-semibold">Login</Link></>
+            <>Already have an account? <Link to="/login" className="text-neon-blue hover:underline">Login</Link></>
           )}
         </div>
       </div>
