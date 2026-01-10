@@ -53,8 +53,7 @@ const Dashboard: React.FC = () => {
   // Job automation stats
   const [appliedCount, setAppliedCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
-  const [currentJob, setCurrentJob] = useState<any>(null);
-  const [showJobCard, setShowJobCard] = useState(false);
+  const [jobCards, setJobCards] = useState<any[]>([]); // Array of all jobs
 
   // Auto-scroll logs
   useEffect(() => {
@@ -456,8 +455,7 @@ const Dashboard: React.FC = () => {
     setBotLogs([]);
     setAppliedCount(0);
     setSkippedCount(0);
-    setCurrentJob(null);
-    setShowJobCard(false);
+    setJobCards([]); // Reset job cards array
 
     try {
       // Show info message
@@ -504,10 +502,12 @@ const Dashboard: React.FC = () => {
           if (logsResult.logs && logsResult.logs.length > 0) {
             setBotLogs(logsResult.logs);
 
-            // Parse logs to extract counts and current job
+            // Parse logs to extract counts and all jobs
             let applied = 0;
             let skipped = 0;
-            let latestJob = null;
+            const jobsFound: any[] = [];
+            let currentJobTitle = '';
+            let currentCompany = '';
 
             logsResult.logs.forEach((log: any) => {
               const msg = log.message || '';
@@ -524,31 +524,39 @@ const Dashboard: React.FC = () => {
                 if (match) skipped = parseInt(match[1]);
               }
 
-              // Extract current job info
+              // Extract job info
               if (msg.includes('Scraped job details:')) {
                 const titleMatch = msg.match(/details: (.+?) at (.+)/);
                 if (titleMatch) {
-                  latestJob = {
-                    jobTitle: titleMatch[1],
-                    companyName: titleMatch[2],
-                    status: 'Processing...'
-                  };
+                  currentJobTitle = titleMatch[1];
+                  currentCompany = titleMatch[2];
                 }
               }
 
-              // Update job status
-              if (msg.includes('Job application submitted')) {
-                if (latestJob) latestJob.status = 'Applied';
-              } else if (msg.includes('Job skipped')) {
-                if (latestJob) latestJob.status = 'Skipped';
+              // When job is applied or skipped, add to array
+              if ((msg.includes('Job application submitted') || msg.includes('Job skipped')) && currentJobTitle && currentCompany) {
+                const status = msg.includes('Job application submitted') ? 'Applied' : 'Skipped';
+                const job = {
+                  id: `${currentJobTitle}-${currentCompany}-${Date.now()}`,
+                  jobTitle: currentJobTitle,
+                  companyName: currentCompany,
+                  status: status,
+                  timestamp: new Date().toISOString()
+                };
+                jobsFound.push(job);
               }
             });
 
             setAppliedCount(applied);
             setSkippedCount(skipped);
-            if (latestJob) {
-              setCurrentJob(latestJob);
-              setShowJobCard(true);
+
+            // Add new jobs to the beginning of array (newest at top)
+            if (jobsFound.length > 0) {
+              setJobCards(prev => {
+                const existingIds = new Set(prev.map(j => j.id));
+                const newJobs = jobsFound.filter(j => !existingIds.has(j.id));
+                return [...newJobs, ...prev]; // New jobs at the beginning
+              });
             }
           }
 
@@ -581,7 +589,6 @@ const Dashboard: React.FC = () => {
       // Immediately update UI state
       setIsRunning(false);
       setError(null);
-      setShowJobCard(false);
 
       // Clear any active polling
       if (botPollRef.current) {
@@ -1223,47 +1230,53 @@ const Dashboard: React.FC = () => {
               )}
             </div>
 
-            {/* Job Card Popup */}
-            {showJobCard && currentJob && (
-              <div className="fixed bottom-6 right-6 w-96 bg-dark-800 border-2 border-neon-blue/30 rounded-2xl shadow-2xl shadow-neon-blue/20 overflow-hidden z-50 animate-slide-up">
-                <div className="bg-gradient-to-r from-neon-blue/20 to-purple-500/20 px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Briefcase className="w-5 h-5 text-neon-blue" />
-                    <span className="text-white font-bold">Current Job</span>
-                  </div>
-                  <button
-                    onClick={() => setShowJobCard(false)}
-                    className="text-gray-400 hover:text-white transition-colors"
+            {/* Job Cards - Full Width Stack */}
+            {jobCards.length > 0 && (
+              <div className="mt-6 space-y-3 max-h-96 overflow-y-auto">
+                <h3 className="text-gray-400 text-sm font-semibold uppercase tracking-wider px-2">Jobs Processing</h3>
+                {jobCards.map((job) => (
+                  <div
+                    key={job.id}
+                    className={`bg-dark-800 border-2 rounded-xl overflow-hidden transition-all ${
+                      job.status === 'Applied'
+                        ? 'border-green-500/30 shadow-lg shadow-green-500/10'
+                        : 'border-gray-700/30'
+                    }`}
                   >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+                    <div className="px-5 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1">
+                        {/* Status Icon */}
+                        <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+                          job.status === 'Applied' ? 'bg-green-500/20' : 'bg-gray-700/20'
+                        }`}>
+                          {job.status === 'Applied' ? (
+                            <CheckCircle className="w-6 h-6 text-green-400" />
+                          ) : (
+                            <X className="w-6 h-6 text-gray-400" />
+                          )}
+                        </div>
 
-                <div className="p-4 space-y-3">
-                  <div>
-                    <h3 className="text-white font-bold text-lg mb-1">{currentJob.jobTitle || 'Job Title'}</h3>
-                    <p className="text-gray-400 text-sm flex items-center gap-2">
-                      <Building2 className="w-4 h-4" />
-                      {currentJob.companyName || 'Company Name'}
-                    </p>
-                  </div>
+                        {/* Job Info */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-white font-bold text-base mb-1 truncate">{job.jobTitle}</h4>
+                          <p className="text-gray-400 text-sm flex items-center gap-2 truncate">
+                            <Building2 className="w-4 h-4 flex-shrink-0" />
+                            {job.companyName}
+                          </p>
+                        </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-dark-900/50 rounded-lg p-2">
-                      <p className="text-xs text-gray-500">Experience</p>
-                      <p className="text-white text-sm font-semibold">{currentJob.experienceRequired || 'N/A'}</p>
+                        {/* Status Badge */}
+                        <div className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                          job.status === 'Applied'
+                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                            : 'bg-gray-700/20 text-gray-400 border border-gray-700/30'
+                        }`}>
+                          {job.status}
+                        </div>
+                      </div>
                     </div>
-                    <div className="bg-dark-900/50 rounded-lg p-2">
-                      <p className="text-xs text-gray-500">Location</p>
-                      <p className="text-white text-sm font-semibold">{currentJob.location || 'N/A'}</p>
-                    </div>
                   </div>
-
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className={`w-2 h-2 rounded-full ${currentJob.status === 'Applied' ? 'bg-green-400 animate-pulse' : 'bg-yellow-400 animate-pulse'}`}></div>
-                    <span className="text-gray-300">{currentJob.status || 'Processing...'}</span>
-                  </div>
-                </div>
+                ))}
               </div>
             )}
           </div>
