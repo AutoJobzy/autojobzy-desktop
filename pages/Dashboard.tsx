@@ -26,6 +26,7 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [botLogs, setBotLogs] = useState<any[]>([]);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
   // Resume Upload State for Config Tab
   const [analyzing, setAnalyzing] = useState(false);
@@ -423,9 +424,13 @@ const Dashboard: React.FC = () => {
       updateConfig(configForm);
 
       setSuccess('✅ Configuration saved successfully!');
+      setShowSuccessPopup(true);
 
-      // Auto-clear success message after 5 seconds
-      setTimeout(() => setSuccess(null), 5000);
+      // Auto-clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccess(null);
+        setShowSuccessPopup(false);
+      }, 3000);
     } catch (err: any) {
       setError(`❌ Failed to save configuration: ${err.message}`);
     }
@@ -1504,11 +1509,29 @@ const Dashboard: React.FC = () => {
                             )}
                           </div>
                         </div>
-                        {analyzing ? (
-                          <span className="text-neon-blue font-bold text-xs">{uploadProgress}%</span>
-                        ) : (
-                          <CheckCircle className="text-green-500 w-4 h-4" />
-                        )}
+                        <div className="flex items-center gap-2">
+                          {analyzing ? (
+                            <span className="text-neon-blue font-bold text-xs">{uploadProgress}%</span>
+                          ) : (
+                            <>
+                              <CheckCircle className="text-green-500 w-4 h-4" />
+                              <input
+                                type="file"
+                                id="resume-change"
+                                className="hidden"
+                                accept=".pdf,.doc,.docx"
+                                onChange={handleFileUpload}
+                              />
+                              <label
+                                htmlFor="resume-change"
+                                className="cursor-pointer text-[10px] text-neon-blue hover:underline flex items-center gap-1 px-2 py-1 rounded bg-neon-blue/10 hover:bg-neon-blue/20 transition-colors"
+                              >
+                                <UploadCloud className="w-3 h-3" />
+                                Change
+                              </label>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -3135,6 +3158,36 @@ const Dashboard: React.FC = () => {
       <DashboardLayout activeTab={activeTab} setActiveTab={setActiveTab}>
         {renderContent()}
       </DashboardLayout>
+
+      {/* Success Popup Modal */}
+      {showSuccessPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-dark-800 border-2 border-green-500/30 rounded-2xl p-8 max-w-md w-full shadow-2xl shadow-green-500/20 animate-slide-up">
+            <div className="text-center">
+              {/* Success Icon */}
+              <div className="mx-auto w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="w-10 h-10 text-green-500" />
+              </div>
+
+              {/* Success Message */}
+              <h3 className="text-2xl font-bold text-white mb-2">
+                Configuration Saved!
+              </h3>
+              <p className="text-gray-400 mb-6">
+                Your job settings have been successfully saved and are ready to use.
+              </p>
+
+              {/* Close Button */}
+              <button
+                onClick={() => setShowSuccessPopup(false)}
+                className="px-6 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-lg hover:shadow-green-500/30"
+              >
+                Got it!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

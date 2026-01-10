@@ -18,6 +18,7 @@ files:
   - node_modules/**/*
   - package.json
   - .env
+  - .env.production
 
 # Keep asar enabled but unpack native modules and server files
 asar: true
@@ -29,6 +30,7 @@ asarUnpack:
   - "server/**/*"
   - "node_modules/**/*"
   - ".env"
+  - ".env.production"
 
 # Extra resources (server files, etc.)
 extraResources:
