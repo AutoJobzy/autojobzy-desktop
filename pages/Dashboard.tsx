@@ -232,6 +232,7 @@ const Dashboard: React.FC = () => {
     noticePeriod: 'Immediate',
     availability: 'Flexible',
     resumeName: '',
+    resumeS3Url: '',
     resumeScore: 0,
     maxPages: 5,
     yearsOfExperience: 0,
@@ -633,6 +634,7 @@ const Dashboard: React.FC = () => {
           setConfigForm(prev => ({
             ...prev,
             resumeName: result.data.fileName,
+            resumeS3Url: result.data.s3Url || '',
             resumeScore: 92, // Can be updated with AI analysis later
           }));
           setSuccess('Resume uploaded successfully!');
@@ -667,6 +669,7 @@ const Dashboard: React.FC = () => {
           noticePeriod: result.noticePeriod || 'Immediate',
           availability: result.availability || 'Flexible',
           resumeName: result.resumeFileName || '',
+          resumeS3Url: result.resumeS3Url || '',
           resumeScore: result.resumeScore || 0,
           maxPages: result.maxPages || 5,
           yearsOfExperience: result.yearsOfExperience ?? 0,
@@ -1477,6 +1480,28 @@ const Dashboard: React.FC = () => {
                           <div>
                             <div className="text-white font-medium text-sm">{configForm.resumeName || "Parsing Resume..."}</div>
                             {analyzing && <div className="text-[10px] text-gray-400">Updating Analysis...</div>}
+                            {!analyzing && configForm.resumeS3Url && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <a
+                                  href={configForm.resumeS3Url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[10px] text-neon-blue hover:underline flex items-center gap-1"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  View Resume
+                                </a>
+                                <span className="text-gray-600">|</span>
+                                <a
+                                  href={configForm.resumeS3Url}
+                                  download
+                                  className="text-[10px] text-neon-purple hover:underline flex items-center gap-1"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  Download
+                                </a>
+                              </div>
+                            )}
                           </div>
                         </div>
                         {analyzing ? (

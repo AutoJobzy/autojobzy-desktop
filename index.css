@@ -296,6 +296,103 @@ body {
   }
 }
 
+/* Modern Card Styles (Dabang Theme) */
+.modern-card {
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.modern-card:hover {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Gradient Backgrounds */
+.gradient-primary {
+  background: linear-gradient(135deg, #5D5FEF 0%, #9B7EFF 100%);
+}
+
+.gradient-sidebar {
+  background: linear-gradient(180deg, #5D5FEF 0%, #4A4CDB 100%);
+}
+
+/* Stat Card Backgrounds */
+.stat-card-pink {
+  background: linear-gradient(135deg, #FFE5F1 0%, #FFF0F7 100%);
+}
+
+.stat-card-yellow {
+  background: linear-gradient(135deg, #FFF6E5 0%, #FFFBF0 100%);
+}
+
+.stat-card-green {
+  background: linear-gradient(135deg, #E5FFF0 0%, #F0FFF5 100%);
+}
+
+.stat-card-purple {
+  background: linear-gradient(135deg, #F3E5FF 0%, #F9F0FF 100%);
+}
+
+/* Modern Button Styles */
+.btn-modern {
+  padding: 0.625rem 1.5rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.btn-modern:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.btn-primary-modern {
+  background: linear-gradient(135deg, #5D5FEF 0%, #4A4CDB 100%);
+  color: white;
+}
+
+.btn-primary-modern:hover {
+  box-shadow: 0 4px 14px 0 rgba(93, 95, 239, 0.39);
+}
+
+/* Light Theme Sidebar */
+.sidebar-light {
+  background: white;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Light Theme Header */
+.header-light {
+  background: white;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+/* Modern Input Styles */
+.input-modern {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  transition: all 0.2s ease;
+}
+
+.input-modern:focus {
+  border-color: #5D5FEF;
+  box-shadow: 0 0 0 3px rgba(93, 95, 239, 0.1);
+  outline: none;
+}
+
+/* Chart Container */
+.chart-container {
+  background: white;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
 /* Print styles - always light */
 @media print {
   body {
