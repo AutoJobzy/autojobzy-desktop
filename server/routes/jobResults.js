@@ -27,7 +27,7 @@ router.post('/bulk', authenticateToken, async (req, res) => {
         // Transform data to match database schema
         const transformedResults = results.map(result => ({
             userId: req.userId,
-            datetime: result.datetime ? result.datetime : new Date().toISOString(),
+            datetime: result.datetime ? new Date(result.datetime) : new Date(),
             pageNumber: result.pageNumber,
             jobNumber: result.jobNumber,
             companyUrl: result.companyUrl,

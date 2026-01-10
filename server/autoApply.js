@@ -1360,7 +1360,7 @@ export async function startAutomation(options = {}) {
 
                 // Save job result with scraped details
                 const jobResult = {
-                    datetime: new Date().toISOString(),
+                    datetime: new Date(),
                     pageNumber: currentPage,
                     jobNumber: `${i + 1}/${jobLinks.length}`,
                     companyUrl: link,
@@ -1449,7 +1449,7 @@ export async function startAutomation(options = {}) {
 
                 const dbResults = jobResults.map(result => ({
                     userId: userId,
-                    datetime: new Date(result.datetime || Date.now()),
+                    datetime: result.datetime || new Date(),
                     pageNumber: result.pageNumber,
                     jobNumber: result.jobNumber,
                     companyUrl: result.companyUrl,
