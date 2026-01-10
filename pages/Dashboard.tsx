@@ -50,6 +50,12 @@ const Dashboard: React.FC = () => {
   // Bot automation polling ref
   const botPollRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Job automation stats
+  const [appliedCount, setAppliedCount] = useState(0);
+  const [skippedCount, setSkippedCount] = useState(0);
+  const [currentJob, setCurrentJob] = useState<any>(null);
+  const [showJobCard, setShowJobCard] = useState(false);
+
   // Auto-scroll logs
   useEffect(() => {
     if (logContainerRef.current) {
@@ -448,6 +454,10 @@ const Dashboard: React.FC = () => {
     setSuccess(null);
     setIsRunning(true);
     setBotLogs([]);
+    setAppliedCount(0);
+    setSkippedCount(0);
+    setCurrentJob(null);
+    setShowJobCard(false);
 
     try {
       // Show info message
@@ -493,6 +503,53 @@ const Dashboard: React.FC = () => {
           const logsResult = await getAutomationLogs();
           if (logsResult.logs && logsResult.logs.length > 0) {
             setBotLogs(logsResult.logs);
+
+            // Parse logs to extract counts and current job
+            let applied = 0;
+            let skipped = 0;
+            let latestJob = null;
+
+            logsResult.logs.forEach((log: any) => {
+              const msg = log.message || '';
+
+              // Count applied jobs
+              if (msg.includes('Job application submitted') || msg.includes('Total applied:')) {
+                const match = msg.match(/Total applied: (\d+)/);
+                if (match) applied = parseInt(match[1]);
+              }
+
+              // Count skipped jobs
+              if (msg.includes('Job skipped') || msg.includes('Total skipped:')) {
+                const match = msg.match(/Total skipped: (\d+)/);
+                if (match) skipped = parseInt(match[1]);
+              }
+
+              // Extract current job info
+              if (msg.includes('Scraped job details:')) {
+                const titleMatch = msg.match(/details: (.+?) at (.+)/);
+                if (titleMatch) {
+                  latestJob = {
+                    jobTitle: titleMatch[1],
+                    companyName: titleMatch[2],
+                    status: 'Processing...'
+                  };
+                }
+              }
+
+              // Update job status
+              if (msg.includes('Job application submitted')) {
+                if (latestJob) latestJob.status = 'Applied';
+              } else if (msg.includes('Job skipped')) {
+                if (latestJob) latestJob.status = 'Skipped';
+              }
+            });
+
+            setAppliedCount(applied);
+            setSkippedCount(skipped);
+            if (latestJob) {
+              setCurrentJob(latestJob);
+              setShowJobCard(true);
+            }
           }
 
           // Stop polling if automation is no longer running
@@ -524,6 +581,7 @@ const Dashboard: React.FC = () => {
       // Immediately update UI state
       setIsRunning(false);
       setError(null);
+      setShowJobCard(false);
 
       // Clear any active polling
       if (botPollRef.current) {
@@ -1142,59 +1200,72 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
 
-              {/* Terminal Footer - Consistent Theme */}
-              <div className="bg-black border-t border-gray-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
-                <div className="px-6 py-2 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700 flex justify-between items-center">
-                  <span className="text-xs text-gray-400 font-mono uppercase tracking-wider flex items-center gap-2">
-                    <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
-                    {isFilterRunning ? 'Filter Automation Logs' : 'Automation Logs'} {botLogs.length > 0 && `(${botLogs.length})`}
-                    {isFilterRunning && <span className="ml-2 text-neon-green animate-pulse flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 bg-neon-green rounded-full"></div>
-                      RUNNING
-                    </span>}
-                  </span>
-                  <span className="text-xs text-gray-600 font-mono">{isFilterRunning ? 'node server/autoFilter.js' : 'node server/autoApply.js'}</span>
+              {/* Status Bar - Clean UI */}
+              {isRunning && (
+                <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-t border-gray-700 px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-5 h-5 text-neon-blue animate-spin" />
+                      <span className="text-white font-semibold">Applying to jobs...</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 text-sm">
+                        <CheckCircle className="w-4 h-4 text-green-400" />
+                        <span className="text-gray-300">Applied: <span className="text-green-400 font-bold">{appliedCount}</span></span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <X className="w-4 h-4 text-gray-400" />
+                        <span className="text-gray-300">Skipped: <span className="text-gray-400 font-bold">{skippedCount}</span></span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div
-                  ref={logContainerRef}
-                  className="h-72 overflow-y-auto p-6 font-mono text-sm space-y-2 bg-black text-gray-300 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-gray-900"
-                >
-                  {botLogs.length === 0 && logs.length === 0 && (
-                    <div className="text-gray-600 italic flex items-center gap-2">
-                      <div className="w-1 h-1 bg-gray-700 rounded-full"></div>
-                      Automation ready. Click 'START AUTOMATION' to begin.
-                    </div>
-                  )}
+              )}
+            </div>
 
-                  {/* Show bot logs if available, otherwise show context logs */}
-                  {botLogs.length > 0 ? (
-                    botLogs.map((log, idx) => (
-                      <div key={idx} className={`${log.type === 'error' ? 'text-red-400 bg-red-500/5' :
-                        log.type === 'success' ? 'text-green-400 bg-green-500/5' :
-                          log.type === 'warning' ? 'text-yellow-400 bg-yellow-500/5' :
-                            'text-gray-300'
-                        } break-words font-mono leading-relaxed flex gap-3 p-2 rounded hover:bg-white/5 transition-colors`}>
-                        <span className="opacity-40 text-xs w-20 shrink-0 pt-0.5">{log.timestamp}</span>
-                        <span className="flex-1">{log.message}</span>
-                      </div>
-                    ))
-                  ) : (
-                    logs.map((log) => (
-                      <div key={log.id} className={`${log.color} break-words font-mono leading-relaxed flex gap-3 p-2 rounded hover:bg-white/5 transition-colors`}>
-                        <span className="opacity-40 text-xs w-20 shrink-0 pt-0.5">{log.timestamp}</span>
-                        <span className="flex-1">{log.text}</span>
-                      </div>
-                    ))
-                  )}
+            {/* Job Card Popup */}
+            {showJobCard && currentJob && (
+              <div className="fixed bottom-6 right-6 w-96 bg-dark-800 border-2 border-neon-blue/30 rounded-2xl shadow-2xl shadow-neon-blue/20 overflow-hidden z-50 animate-slide-up">
+                <div className="bg-gradient-to-r from-neon-blue/20 to-purple-500/20 px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-5 h-5 text-neon-blue" />
+                    <span className="text-white font-bold">Current Job</span>
+                  </div>
+                  <button
+                    onClick={() => setShowJobCard(false)}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
 
-                  {isRunning && (
-                    <div className="flex items-center gap-2 text-neon-green mt-3 animate-pulse pl-[5.5rem]">
-                      <span className="w-2 h-5 bg-neon-green shadow-[0_0_10px_rgba(0,243,255,0.8)]"></span>
+                <div className="p-4 space-y-3">
+                  <div>
+                    <h3 className="text-white font-bold text-lg mb-1">{currentJob.jobTitle || 'Job Title'}</h3>
+                    <p className="text-gray-400 text-sm flex items-center gap-2">
+                      <Building2 className="w-4 h-4" />
+                      {currentJob.companyName || 'Company Name'}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-dark-900/50 rounded-lg p-2">
+                      <p className="text-xs text-gray-500">Experience</p>
+                      <p className="text-white text-sm font-semibold">{currentJob.experienceRequired || 'N/A'}</p>
                     </div>
-                  )}
+                    <div className="bg-dark-900/50 rounded-lg p-2">
+                      <p className="text-xs text-gray-500">Location</p>
+                      <p className="text-white text-sm font-semibold">{currentJob.location || 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className={`w-2 h-2 rounded-full ${currentJob.status === 'Applied' ? 'bg-green-400 animate-pulse' : 'bg-yellow-400 animate-pulse'}`}></div>
+                    <span className="text-gray-300">{currentJob.status || 'Processing...'}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         );
 
