@@ -1562,9 +1562,9 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Resume Upload Section */}
-                <div className="bg-dark-900/50 p-6 rounded-xl border border-dashed border-gray-600">
-                  <h3 className="text-white font-bold mb-4 flex items-center gap-2 text-sm">
-                    <UploadCloud className="text-neon-blue w-4 h-4" /> Resume & Analysis <span className="text-red-400 ml-1">*</span>
+                <div className="bg-gray-50 p-6 rounded-xl border border-dashed border-gray-300">
+                  <h3 className="text-gray-900 font-bold mb-4 flex items-center gap-2 text-sm">
+                    <UploadCloud className="text-primary-500 w-4 h-4" /> Resume & Analysis <span className="text-red-600 ml-1">*</span>
                   </h3>
 
                   {!configForm.resumeName && !analyzing ? (
@@ -1577,34 +1577,34 @@ const Dashboard: React.FC = () => {
                         onChange={handleFileUpload}
                       />
                       <label htmlFor="resume-upload-dash" className="cursor-pointer inline-flex flex-col items-center">
-                        <span className="text-neon-blue font-bold hover:underline text-sm">Upload Resume</span>
+                        <span className="text-primary-600 font-bold hover:underline text-sm">Upload Resume</span>
                         <span className="text-[10px] text-gray-500 mt-1">PDF, DOCX up to 5MB</span>
                       </label>
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between bg-dark-800 p-3 rounded border border-white/10">
+                      <div className="flex items-center justify-between bg-white p-3 rounded border border-gray-200">
                         <div className="flex items-center gap-3">
-                          <FileText className="text-neon-purple w-5 h-5" />
+                          <FileText className="text-purple-500 w-5 h-5" />
                           <div>
-                            <div className="text-white font-medium text-sm">{configForm.resumeName || "Parsing Resume..."}</div>
-                            {analyzing && <div className="text-[10px] text-gray-400">Updating Analysis...</div>}
+                            <div className="text-gray-900 font-medium text-sm">{configForm.resumeName || "Parsing Resume..."}</div>
+                            {analyzing && <div className="text-[10px] text-gray-500">Updating Analysis...</div>}
                             {!analyzing && configForm.resumeS3Url && (
                               <div className="flex items-center gap-2 mt-1">
                                 <a
                                   href={configForm.resumeS3Url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-[10px] text-neon-blue hover:underline flex items-center gap-1"
+                                  className="text-[10px] text-primary-600 hover:underline flex items-center gap-1"
                                 >
                                   <ExternalLink className="w-3 h-3" />
                                   View Resume
                                 </a>
-                                <span className="text-gray-600">|</span>
+                                <span className="text-gray-400">|</span>
                                 <a
                                   href={configForm.resumeS3Url}
                                   download
-                                  className="text-[10px] text-neon-purple hover:underline flex items-center gap-1"
+                                  className="text-[10px] text-purple-600 hover:underline flex items-center gap-1"
                                 >
                                   <Download className="w-3 h-3" />
                                   Download
@@ -1615,10 +1615,10 @@ const Dashboard: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           {analyzing ? (
-                            <span className="text-neon-blue font-bold text-xs">{uploadProgress}%</span>
+                            <span className="text-primary-600 font-bold text-xs">{uploadProgress}%</span>
                           ) : (
                             <>
-                              <CheckCircle className="text-green-500 w-4 h-4" />
+                              <CheckCircle className="text-green-600 w-4 h-4" />
                               <input
                                 type="file"
                                 id="resume-change"
@@ -1628,7 +1628,7 @@ const Dashboard: React.FC = () => {
                               />
                               <label
                                 htmlFor="resume-change"
-                                className="cursor-pointer text-[10px] text-neon-blue hover:underline flex items-center gap-1 px-2 py-1 rounded bg-neon-blue/10 hover:bg-neon-blue/20 transition-colors"
+                                className="cursor-pointer text-[10px] text-primary-600 hover:underline flex items-center gap-1 px-2 py-1 rounded bg-primary-50 hover:bg-primary-100 transition-colors"
                               >
                                 <UploadCloud className="w-3 h-3" />
                                 Change
@@ -1644,30 +1644,30 @@ const Dashboard: React.FC = () => {
                 {/* Other Job Profile Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-1">
+                    <label className="text-xs text-gray-600 uppercase font-bold flex items-center gap-1">
                       Target Role <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="text"
                       value={configForm.targetRole}
                       onChange={(e) => setConfigForm({ ...configForm, targetRole: e.target.value })}
-                      className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 px-4 text-white text-sm focus:border-neon-blue outline-none"
+                      className="w-full bg-white border border-gray-300 rounded-lg py-2.5 px-4 text-gray-900 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase font-bold">Location</label>
+                    <label className="text-xs text-gray-600 uppercase font-bold">Location</label>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
                       <input
                         type="text"
                         value={configForm.location}
                         onChange={(e) => setConfigForm({ ...configForm, location: e.target.value })}
-                        className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white text-sm focus:border-neon-blue outline-none"
+                        className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-10 pr-4 text-gray-900 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
                       />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-1">
+                    <label className="text-xs text-gray-600 uppercase font-bold flex items-center gap-1">
                       Date of Birth
                     </label>
                     <div className="relative">
@@ -1676,7 +1676,7 @@ const Dashboard: React.FC = () => {
                         type="date"
                         value={configForm.dob}
                         onChange={(e) => setConfigForm({ ...configForm, dob: e.target.value })}
-                        className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white text-sm focus:border-neon-blue outline-none"
+                        className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-10 pr-4 text-gray-900 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
                         placeholder="DD/MM/YYYY"
                       />
                     </div>
@@ -1687,13 +1687,13 @@ const Dashboard: React.FC = () => {
                 {/* New Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-1">
+                    <label className="text-xs text-gray-600 uppercase font-bold flex items-center gap-1">
                       Current CTC <span className="text-red-400">*</span>
                     </label>
                     <div className="relative">
                       <IndianRupee className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
                       <input
-                        className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-9 pr-2 text-white text-sm focus:border-neon-green outline-none"
+                        className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-9 pr-2 text-gray-900 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
                         value={configForm.currentSalary}
                         onChange={e => setConfigForm({ ...configForm, currentSalary: e.target.value })}
                         placeholder="e.g 4 LPA"
@@ -1701,13 +1701,13 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-1">
+                    <label className="text-xs text-gray-600 uppercase font-bold flex items-center gap-1">
                       Expected CTC <span className="text-red-400">*</span>
                     </label>
                     <div className="relative">
                       <IndianRupee className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
                       <input
-                        className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-9 pr-2 text-white text-sm focus:border-neon-green outline-none"
+                        className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-9 pr-2 text-gray-900 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
                         value={configForm.expectedSalary}
                         onChange={e => setConfigForm({ ...configForm, expectedSalary: e.target.value })}
                         placeholder="e.g 8 LPA"
@@ -1715,13 +1715,13 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-1">
+                    <label className="text-xs text-gray-600 uppercase font-bold flex items-center gap-1">
                       Notice Period <span className="text-red-400">*</span>
                     </label>
                     <div className="relative">
                       <Clock className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
                       <select
-                        className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-9 pr-2 text-white text-sm focus:border-neon-green outline-none appearance-none cursor-pointer"
+                        className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-9 pr-2 text-gray-900 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none appearance-none cursor-pointer"
                         value={configForm.noticePeriod}
                         onChange={e => setConfigForm({ ...configForm, noticePeriod: e.target.value })}
                       >
@@ -1735,7 +1735,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-1">
+                  <label className="text-xs text-gray-600 uppercase font-bold flex items-center gap-1">
                     Search Keywords <span className="text-red-400">*</span>
                   </label>
                   <div className="relative">
@@ -1744,19 +1744,19 @@ const Dashboard: React.FC = () => {
                       value={configForm.keywords}
                       onChange={(e) => setConfigForm({ ...configForm, keywords: e.target.value })}
                       placeholder="Software Engineer"
-                      className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white text-sm focus:border-neon-blue outline-none min-h-[60px]"
+                      className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-10 pr-4 text-gray-900 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none min-h-[60px]"
                     />
                   </div>
                 </div>
 
                 {/* Automation Settings */}
-                <div className="bg-dark-900/50 p-6 rounded-xl border border-dashed border-gray-600">
+                <div className="bg-gray-50 p-6 rounded-xl border border-dashed border-gray-300">
                   <h3 className="text-white font-bold mb-4 flex items-center gap-2 text-sm">
                     <Activity className="text-neon-blue w-4 h-4" /> Automation Settings
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-xs text-gray-400 uppercase font-bold">Search Years of Experience</label>
+                      <label className="text-xs text-gray-600 uppercase font-bold">Search Years of Experience</label>
                       <input
                         type="number"
                         min="0"
@@ -1769,20 +1769,20 @@ const Dashboard: React.FC = () => {
                             setConfigForm({ ...configForm, yearsOfExperience: value });
                           }
                         }}
-                        className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 px-4 text-white text-sm focus:border-neon-blue outline-none"
+                        className="w-full bg-white border border-gray-300 rounded-lg py-2.5 px-4 text-gray-900 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
                         placeholder="0"
                       />
                       <p className="text-[10px] text-gray-500">Used for job filtering and match calculation</p>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs text-gray-400 uppercase font-bold">Max Pages to Process</label>
+                      <label className="text-xs text-gray-600 uppercase font-bold">Max Pages to Process</label>
                       <input
                         type="number"
                         min="1"
                         max="50"
                         value={configForm.maxPages || 5}
                         onChange={(e) => setConfigForm({ ...configForm, maxPages: parseInt(e.target.value) || 5 })}
-                        className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 px-4 text-white text-sm focus:border-neon-blue outline-none"
+                        className="w-full bg-white border border-gray-300 rounded-lg py-2.5 px-4 text-gray-900 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
                         placeholder="5"
                       />
                       <p className="text-xs text-gray-500">Number of job listing pages to process (1-50)</p>
@@ -1792,13 +1792,13 @@ const Dashboard: React.FC = () => {
 
                 {/* Availability Field */}
                 <div className="space-y-2">
-                  <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-1">
+                  <label className="text-xs text-gray-600 uppercase font-bold flex items-center gap-1">
                     Face-to-Face Availability <span className="text-red-400">*</span>
                   </label>
                   <div className="relative">
                     <Calendar className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
                     <select
-                      className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-9 pr-2 text-white text-sm focus:border-neon-purple outline-none appearance-none cursor-pointer"
+                      className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-9 pr-2 text-gray-900 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none appearance-none cursor-pointer"
                       value={configForm.availability}
                       onChange={e => setConfigForm({ ...configForm, availability: e.target.value })}
                       required
@@ -1834,7 +1834,7 @@ const Dashboard: React.FC = () => {
                       placeholder="Skill Name (e.g., Java)"
                       value={newSkill.displayName}
                       onChange={(e) => setNewSkill({ ...newSkill, skillName: e.target.value.toLowerCase(), displayName: e.target.value })}
-                      className="bg-dark-900 border border-gray-700 rounded-lg py-2 px-3 text-white text-xs focus:border-neon-purple outline-none"
+                      className="bg-white border border-gray-300 rounded-lg py-2 px-3 text-gray-900 text-xs focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
                     />
                     <input
                       type="number"
@@ -1844,21 +1844,21 @@ const Dashboard: React.FC = () => {
                       step="0.5"
                       value={newSkill.rating}
                       onChange={(e) => setNewSkill({ ...newSkill, rating: parseFloat(e.target.value) })}
-                      className="bg-dark-900 border border-gray-700 rounded-lg py-2 px-3 text-white text-xs focus:border-neon-purple outline-none"
+                      className="bg-white border border-gray-300 rounded-lg py-2 px-3 text-gray-900 text-xs focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
                     />
                     <input
                       type="number"
                       placeholder="Out of"
                       value={newSkill.outOf}
                       onChange={(e) => setNewSkill({ ...newSkill, outOf: parseInt(e.target.value) })}
-                      className="bg-dark-900 border border-gray-700 rounded-lg py-2 px-3 text-white text-xs focus:border-neon-purple outline-none"
+                      className="bg-white border border-gray-300 rounded-lg py-2 px-3 text-gray-900 text-xs focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
                     />
                     <input
                       type="text"
                       placeholder="Experience"
                       value={newSkill.experience}
                       onChange={(e) => setNewSkill({ ...newSkill, experience: e.target.value })}
-                      className="bg-dark-900 border border-gray-700 rounded-lg py-2 px-3 text-white text-xs focus:border-neon-purple outline-none"
+                      className="bg-white border border-gray-300 rounded-lg py-2 px-3 text-gray-900 text-xs focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none"
                     />
                     <button
                       type="button"
@@ -1917,7 +1917,7 @@ const Dashboard: React.FC = () => {
 
                   {/* Job Search URL Input */}
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-2">
+                    <label className="text-xs text-gray-600 uppercase font-bold flex items-center gap-2">
                       <Globe className="w-3 h-3" /> Enter Your Search URL
                     </label>
                     <input
