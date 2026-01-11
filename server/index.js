@@ -49,9 +49,24 @@ import './models/InstituteStaff.js';
 import './models/InstituteStudent.js';
 import './models/associations.js'; // Define model associations
 
-dotenv.config();
-
+// Configure dotenv with explicit path resolution
+// In production (Electron), .env is in app.asar.unpacked/
+// In development, .env is in project root
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const envPath = path.resolve(__dirname, '../.env');
+const envProductionPath = path.resolve(__dirname, '../.env.production');
+
+// Try to load .env.production first (for Electron builds), fallback to .env
+if (process.env.NODE_ENV === 'production' && fs.existsSync(envProductionPath)) {
+    console.log('Loading .env.production from:', envProductionPath);
+    dotenv.config({ path: envProductionPath });
+} else if (fs.existsSync(envPath)) {
+    console.log('Loading .env from:', envPath);
+    dotenv.config({ path: envPath });
+} else {
+    console.warn('No .env file found. Trying default dotenv.config()');
+    dotenv.config();
+}
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -147,12 +162,29 @@ app.use((req, res) => {
 
 const startServer = async () => {
     try {
+        console.log('\n='.repeat(50));
+        console.log('🚀 Starting AutoJobzy Backend Server...');
+        console.log('='.repeat(50));
+        console.log('Environment:', process.env.NODE_ENV || 'development');
+        console.log('Platform:', process.platform);
+        console.log('Working Directory:', process.cwd());
+        console.log('Server Directory:', __dirname);
+        console.log('PORT:', PORT);
+        console.log('DB_HOST:', process.env.DB_HOST || 'not set');
+        console.log('DB_NAME:', process.env.DB_NAME || 'not set');
+        console.log('='.repeat(50));
+
         // Initialize database
+        console.log('\n📊 Initializing database connection...');
         await initDatabase();
+        console.log('✅ Database initialized successfully');
 
         // Initialize Scheduler
+        console.log('\n⏰ Initializing scheduler...');
         await initScheduler();
+        console.log('✅ Scheduler initialized successfully');
 
+        console.log('\n🌐 Starting HTTP server...');
         app.listen(PORT, () => {
             console.log(`\n🚀 Server running on http://localhost:${PORT}`);
             console.log(`📊 Database: MySQL @ localhost:3306/jobautomate`);
