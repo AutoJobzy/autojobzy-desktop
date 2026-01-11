@@ -401,6 +401,127 @@ router.post('/institutes/:id/reject', authenticateToken, isSuperAdmin, async (re
     }
 });
 
+/**
+ * GET /api/superadmin/institutes/:id/invoice
+ * Get invoice details for institute subscription
+ */
+router.get('/institutes/:id/invoice', authenticateToken, isSuperAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Fetch institute with active subscription and package details
+        const institute = await Institute.findByPk(id, {
+            include: [
+                {
+                    model: InstituteSubscription,
+                    as: 'subscription',
+                    include: [
+                        {
+                            model: Package,
+                            as: 'package',
+                        },
+                    ],
+                    where: {
+                        status: { [Op.in]: ['active', 'pending'] }
+                    },
+                    order: [['createdAt', 'DESC']],
+                    limit: 1,
+                },
+            ],
+        });
+
+        if (!institute) {
+            return res.status(404).json({ error: 'Institute not found' });
+        }
+
+        if (!institute.subscription || institute.subscription.length === 0) {
+            return res.status(404).json({ error: 'No active subscription found for this institute' });
+        }
+
+        const subscription = institute.subscription[0];
+        const packageInfo = subscription.package;
+
+        // Generate invoice number (format: INV-YYYY-MM-INSTITUTEID-SUBID)
+        const invoiceDate = subscription.paymentDate || subscription.createdAt;
+        const invoiceNumber = `INV-${new Date(invoiceDate).getFullYear()}-${String(new Date(invoiceDate).getMonth() + 1).padStart(2, '0')}-${institute.id.substring(0, 8)}-${subscription.id}`;
+
+        // Calculate subscription duration in months
+        const startDate = new Date(subscription.startDate);
+        const endDate = new Date(subscription.endDate);
+        const months = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24 * 30));
+
+        // Calculate amounts
+        const subtotal = parseFloat(subscription.paymentAmount) || (parseFloat(packageInfo.pricePerMonth) * months);
+        const tax = subtotal * 0.18; // 18% GST
+        const total = subtotal + tax;
+
+        // Build invoice response
+        const invoice = {
+            invoiceNumber,
+            invoiceDate: invoiceDate,
+            dueDate: subscription.endDate,
+
+            // Billing from (Your company details)
+            from: {
+                company: 'AutoJobzy',
+                address: 'Business Address',
+                city: 'City',
+                state: 'State',
+                pincode: 'PIN',
+                gstin: 'GST Number',
+                email: 'billing@autojobzy.com',
+                phone: '+91 XXXXXXXXXX',
+            },
+
+            // Billing to (Institute details)
+            to: {
+                name: institute.name,
+                email: institute.email,
+                phone: institute.phone,
+                address: institute.address,
+            },
+
+            // Subscription details
+            subscription: {
+                packageName: packageInfo.name,
+                packageDescription: packageInfo.description,
+                studentLimit: packageInfo.studentLimit,
+                pricePerMonth: parseFloat(packageInfo.pricePerMonth),
+                duration: `${months} month(s)`,
+                startDate: subscription.startDate,
+                endDate: subscription.endDate,
+                status: subscription.status,
+            },
+
+            // Payment details
+            payment: {
+                status: subscription.paymentStatus,
+                date: subscription.paymentDate,
+                reference: subscription.paymentReference,
+                method: 'Online Payment', // Can be made dynamic
+            },
+
+            // Amount breakdown
+            amounts: {
+                subtotal: subtotal.toFixed(2),
+                tax: tax.toFixed(2),
+                taxRate: '18%',
+                total: total.toFixed(2),
+                currency: 'INR',
+            },
+
+            // Additional info
+            notes: 'Thank you for your business!',
+            terms: 'Payment is due within 30 days from the invoice date.',
+        };
+
+        res.json(invoice);
+    } catch (error) {
+        console.error('Error generating invoice:', error);
+        res.status(500).json({ error: 'Failed to generate invoice', details: error.message });
+    }
+});
+
 // ============================================================================
 // SUBSCRIPTION MANAGEMENT
 // ============================================================================
