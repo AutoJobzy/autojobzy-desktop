@@ -55,10 +55,12 @@ function createWindow() {
     const indexPath = path.join(__dirname, '../dist/index.html');
     console.log('Loading index.html from:', indexPath);
     mainWindow.loadFile(indexPath);
-    // Enable DevTools temporarily for debugging Windows issue
-    if (process.platform === 'win32') {
+
+    // Enable DevTools in production for debugging
+    // Open after a short delay to ensure window is ready
+    setTimeout(() => {
       mainWindow.webContents.openDevTools();
-    }
+    }, 500);
   }
 
   // Log any load failures
