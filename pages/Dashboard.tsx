@@ -53,7 +53,6 @@ const Dashboard: React.FC = () => {
   // Job automation stats
   const [appliedCount, setAppliedCount] = useState(0);
   const [skippedCount, setSkippedCount] = useState(0);
-  const [jobCards, setJobCards] = useState<any[]>([]); // Array of all jobs
 
   // Auto-scroll logs
   useEffect(() => {
@@ -455,7 +454,6 @@ const Dashboard: React.FC = () => {
     setBotLogs([]);
     setAppliedCount(0);
     setSkippedCount(0);
-    setJobCards([]); // Reset job cards array
 
     try {
       // Show info message
@@ -502,12 +500,9 @@ const Dashboard: React.FC = () => {
           if (logsResult.logs && logsResult.logs.length > 0) {
             setBotLogs(logsResult.logs);
 
-            // Parse logs to extract counts and all jobs
+            // Parse logs to extract counts
             let applied = 0;
             let skipped = 0;
-            const jobsFound: any[] = [];
-            let currentJobTitle = '';
-            let currentCompany = '';
 
             logsResult.logs.forEach((log: any) => {
               const msg = log.message || '';
@@ -523,41 +518,10 @@ const Dashboard: React.FC = () => {
                 const match = msg.match(/Total skipped: (\d+)/);
                 if (match) skipped = parseInt(match[1]);
               }
-
-              // Extract job info
-              if (msg.includes('Scraped job details:')) {
-                const titleMatch = msg.match(/details: (.+?) at (.+)/);
-                if (titleMatch) {
-                  currentJobTitle = titleMatch[1];
-                  currentCompany = titleMatch[2];
-                }
-              }
-
-              // When job is applied or skipped, add to array
-              if ((msg.includes('Job application submitted') || msg.includes('Job skipped')) && currentJobTitle && currentCompany) {
-                const status = msg.includes('Job application submitted') ? 'Applied' : 'Skipped';
-                const job = {
-                  id: `${currentJobTitle}-${currentCompany}-${Date.now()}`,
-                  jobTitle: currentJobTitle,
-                  companyName: currentCompany,
-                  status: status,
-                  timestamp: new Date().toISOString()
-                };
-                jobsFound.push(job);
-              }
             });
 
             setAppliedCount(applied);
             setSkippedCount(skipped);
-
-            // Add new jobs to the beginning of array (newest at top)
-            if (jobsFound.length > 0) {
-              setJobCards(prev => {
-                const existingIds = new Set(prev.map(j => j.id));
-                const newJobs = jobsFound.filter(j => !existingIds.has(j.id));
-                return [...newJobs, ...prev]; // New jobs at the beginning
-              });
-            }
           }
 
           // Stop polling if automation is no longer running
@@ -1230,56 +1194,46 @@ const Dashboard: React.FC = () => {
               )}
             </div>
 
-            {/* Job Cards - Full Width Stack */}
-            {jobCards.length > 0 && (
-              <div className="mt-6 space-y-3 max-h-96 overflow-y-auto">
-                <h3 className="text-gray-400 text-sm font-semibold uppercase tracking-wider px-2">Jobs Processing</h3>
-                {jobCards.map((job, index) => (
-                  <div
-                    key={job.id}
-                    className={`bg-dark-800 border-2 rounded-xl overflow-hidden transition-all animate-slide-up animate-fade-in ${
-                      job.status === 'Applied'
-                        ? 'border-green-500/30 shadow-lg shadow-green-500/10'
-                        : 'border-gray-700/30'
-                    }`}
-                    style={{ animationDelay: `${index * 0.1}s` }}
-                  >
-                    <div className="px-5 py-4 flex items-center justify-between">
-                      <div className="flex items-center gap-4 flex-1">
-                        {/* Status Icon */}
-                        <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                          job.status === 'Applied' ? 'bg-green-500/20' : 'bg-gray-700/20'
-                        }`}>
-                          {job.status === 'Applied' ? (
-                            <CheckCircle className="w-6 h-6 text-green-400" />
-                          ) : (
-                            <X className="w-6 h-6 text-gray-400" />
-                          )}
-                        </div>
-
-                        {/* Job Info */}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-white font-bold text-base mb-1 truncate">{job.jobTitle}</h4>
-                          <p className="text-gray-400 text-sm flex items-center gap-2 truncate">
-                            <Building2 className="w-4 h-4 flex-shrink-0" />
-                            {job.companyName}
-                          </p>
-                        </div>
-
-                        {/* Status Badge */}
-                        <div className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                          job.status === 'Applied'
-                            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                            : 'bg-gray-700/20 text-gray-400 border border-gray-700/30'
-                        }`}>
-                          {job.status}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            {/* Terminal Logs */}
+            <div className="mt-6 bg-black rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
+              {/* Terminal Header */}
+              <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700 px-4 py-2 flex items-center gap-2">
+                <div className="flex gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+                </div>
+                <span className="text-xs text-gray-400 font-mono ml-2">Terminal - Job Automation Logs</span>
               </div>
-            )}
+
+              {/* Terminal Content */}
+              <div
+                ref={logContainerRef}
+                className="h-[400px] overflow-y-auto p-4 font-mono text-xs bg-black"
+              >
+                {botLogs.length === 0 ? (
+                  <div className="text-gray-500 flex items-center gap-2">
+                    <span className="animate-pulse">▸</span>
+                    <span>Waiting for automation to start...</span>
+                  </div>
+                ) : (
+                  botLogs.map((log, index) => (
+                    <div
+                      key={index}
+                      className={`py-1 flex items-start gap-2 ${
+                        log.type === 'error' ? 'text-red-400' :
+                        log.type === 'success' ? 'text-green-400' :
+                        log.type === 'warning' ? 'text-yellow-400' :
+                        'text-gray-300'
+                      }`}
+                    >
+                      <span className="text-gray-600 select-none">[{log.timestamp}]</span>
+                      <span className="flex-1">{log.message}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         );
 
