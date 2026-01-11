@@ -55,13 +55,25 @@ function createWindow() {
     const indexPath = path.join(__dirname, '../dist/index.html');
     console.log('Loading index.html from:', indexPath);
     mainWindow.loadFile(indexPath);
-    // DevTools disabled in production (users can press F12 if needed)
-    // mainWindow.webContents.openDevTools();
+    // Enable DevTools temporarily for debugging Windows issue
+    if (process.platform === 'win32') {
+      mainWindow.webContents.openDevTools();
+    }
   }
 
   // Log any load failures
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     console.error('Failed to load:', errorCode, errorDescription);
+  });
+
+  // Log when page finishes loading
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('✅ Page loaded successfully');
+  });
+
+  // Log any console messages from renderer
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[Renderer] ${message}`);
   });
 
   // Handle window close
