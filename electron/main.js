@@ -55,8 +55,8 @@ function createWindow() {
     const indexPath = path.join(__dirname, '../dist/index.html');
     console.log('Loading index.html from:', indexPath);
     mainWindow.loadFile(indexPath);
-    // IMPORTANT: Open DevTools in production to see errors
-    mainWindow.webContents.openDevTools();
+    // DevTools disabled in production (users can press F12 if needed)
+    // mainWindow.webContents.openDevTools();
   }
 
   // Log any load failures
