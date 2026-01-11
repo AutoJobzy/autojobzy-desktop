@@ -96,16 +96,10 @@ app.whenReady().then(async () => {
       console.log(`✅ Backend server started on http://localhost:${SERVER_PORT}`);
     } catch (error) {
       console.error('❌ Failed to start backend server:', error);
+      console.error('Log file:', logFilePath);
 
-      // Show error dialog
-      const errorMessage = `Failed to start the backend server:\n\n${error.message}\n\n` +
-        `Log file location:\n${logFilePath || 'Unable to create log file'}\n\n` +
-        `Please check the DevTools console (F12) for more details.`;
-
-      dialog.showErrorBox('Backend Server Error', errorMessage);
-
-      // Don't quit - let user see the error in DevTools
-      return;
+      // Just log the error, don't show blocking dialog
+      // App will continue to work if server recovers or is already running
     }
   } else {
     console.log('⚡ Development mode: Using external backend server on port', SERVER_PORT);
