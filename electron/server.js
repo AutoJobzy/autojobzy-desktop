@@ -16,6 +16,8 @@ const isDev = process.env.NODE_ENV === 'development';
  */
 async function startBackendServer() {
   return new Promise((resolve, reject) => {
+    let settled = false; // Track if promise is already resolved/rejected
+
     try {
       // Determine server path and working directory
       const serverPath = isDev
@@ -39,30 +41,58 @@ async function startBackendServer() {
           NODE_ENV: isDev ? 'development' : 'production',
           ELECTRON_RUN_AS_NODE: '1', // Run as Node.js, not Electron
         },
-        stdio: ['inherit', 'inherit', 'inherit'], // Inherit stdio to see server logs
+        stdio: ['inherit', 'pipe', 'pipe'], // Capture stdout and stderr
       });
+
+      // Capture and log stdout
+      if (serverProcess.stdout) {
+        serverProcess.stdout.on('data', (data) => {
+          console.log(`[Backend] ${data.toString().trim()}`);
+        });
+      }
+
+      // Capture and log stderr
+      if (serverProcess.stderr) {
+        serverProcess.stderr.on('data', (data) => {
+          console.error(`[Backend Error] ${data.toString().trim()}`);
+        });
+      }
 
       // Handle process events
       serverProcess.on('error', (error) => {
         console.error('Backend server error:', error);
-        reject(error);
+        if (!settled) {
+          settled = true;
+          reject(error);
+        }
       });
 
       serverProcess.on('exit', (code) => {
         console.log(`Backend server exited with code ${code}`);
+        if (code !== 0 && code !== null && !settled) {
+          settled = true;
+          reject(new Error(`Server exited with code ${code}`));
+        }
         serverProcess = null;
       });
 
       // Give server time to start
       setTimeout(() => {
-        if (serverProcess && !serverProcess.killed) {
-          resolve();
-        } else {
-          reject(new Error('Server failed to start'));
+        if (!settled) {
+          if (serverProcess && !serverProcess.killed) {
+            settled = true;
+            resolve();
+          } else {
+            settled = true;
+            reject(new Error('Server failed to start'));
+          }
         }
       }, 2000);
     } catch (error) {
-      reject(error);
+      if (!settled) {
+        settled = true;
+        reject(error);
+      }
     }
   });
 }
