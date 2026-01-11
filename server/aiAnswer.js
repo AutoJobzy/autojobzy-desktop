@@ -285,7 +285,7 @@ export async function getAnswer(question) {
             totalExperience: () => `${yearsOfExperience} years`,
 
             // Location
-            location: () => location ? `${location}, India` : '',
+            location: () => location || '',
             city: () => location || '',
             state: () => 'Maharashtra',
             country: () => 'India',

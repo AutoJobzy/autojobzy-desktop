@@ -126,14 +126,14 @@ router.post('/run-bot', authenticateToken, async (req, res) => {
         // 6. Load user data into AI answer module
         setUserData({
             name: user.firstName || 'User',
-            currentCTC: jobSettings.currentCTC || 'Not specified',
-            expectedCTC: jobSettings.expectedCTC || 'Not specified',
-            noticePeriod: jobSettings.noticePeriod || 'Immediate',
-            location: jobSettings.location || 'Bangalore',
+            currentCTC: jobSettings.currentCTC || '',
+            expectedCTC: jobSettings.expectedCTC || '',
+            noticePeriod: jobSettings.noticePeriod || '',
+            location: jobSettings.location || '',
             targetRole: jobSettings.targetRole || 'Software Engineer',
             yearsOfExperience: jobSettings.yearsOfExperience || '0',
             naukriEmail: naukriEmail,
-            availability: jobSettings.availability || 'Flexible',
+            availability: jobSettings.availability || '',
             skills: skillsData,
         });
 
