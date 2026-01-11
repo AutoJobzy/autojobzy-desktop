@@ -31,30 +31,13 @@ const INITIAL_USER: User = {
 };
 
 // Helper to get persisted user from localStorage
+// DISABLED: Always return logged out state - user must login every time app opens
 const getPersistedUser = (): User => {
-  try {
-    // First check for autojobzy_user (old format)
-    const stored = localStorage.getItem('autojobzy_user');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return { ...INITIAL_USER, ...parsed };
-    }
+  // Clear any existing auth tokens on app startup
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('autojobzy_user');
 
-    // Also check for 'user' and 'token' (backend API format)
-    const backendUser = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
-    if (backendUser && token) {
-      const userData = JSON.parse(backendUser);
-      return {
-        username: `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
-        email: userData.email || '',
-        isLoggedIn: true,
-        onboardingCompleted: userData.onboardingCompleted ?? false,
-      };
-    }
-  } catch (e) {
-    console.error('Failed to parse stored user:', e);
-  }
   return INITIAL_USER;
 };
 
@@ -65,14 +48,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [reports, setReports] = useState<JobReport[]>([]);
 
-  // Persist user state to localStorage whenever it changes
-  useEffect(() => {
-    if (user.isLoggedIn) {
-      localStorage.setItem('autojobzy_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('autojobzy_user');
-    }
-  }, [user]);
+  // DISABLED: Do not persist user state - force logout on app close
+  // useEffect(() => {
+  //   if (user.isLoggedIn) {
+  //     localStorage.setItem('autojobzy_user', JSON.stringify(user));
+  //   } else {
+  //     localStorage.removeItem('autojobzy_user');
+  //   }
+  // }, [user]);
 
   // Simulation Interval Ref
   const [intervalId, setIntervalId] = useState<ReturnType<typeof setInterval> | null>(null);

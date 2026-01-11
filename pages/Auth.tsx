@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, User as UserIcon, ArrowRight, Loader2, AlertCircle, CheckCircle, Sparkles, Building2 } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, ArrowRight, Loader2, AlertCircle, CheckCircle, Sparkles } from 'lucide-react';
 
 interface AuthProps {
   type: 'login' | 'signup';
@@ -15,7 +15,8 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeName, setWelcomeName] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [userType, setUserType] = useState<'individual' | 'institute'>('individual');
+  // Always use 'individual' type - Institute functionality hidden
+  const userType = 'individual';
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -60,39 +61,22 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
         }
 
         console.log('[Signup] Form validated, proceeding to plan selection');
-        console.log('[Signup] User type:', userType);
         setLoading(false);
 
-        // Navigate based on user type
-        if (userType === 'individual') {
-          // Individual users go to pricing page (existing plans table)
-          navigate('/pricing', {
-            replace: true,
-            state: {
-              fromSignup: true,
-              userType: 'individual',
-              signupData: {
-                firstName: trimmedFirstName,
-                lastName: trimmedLastName,
-                email: trimmedEmail,
-                password: trimmedPassword,
-              }
+        // Navigate to pricing page (individual users only)
+        navigate('/pricing', {
+          replace: true,
+          state: {
+            fromSignup: true,
+            userType: 'individual',
+            signupData: {
+              firstName: trimmedFirstName,
+              lastName: trimmedLastName,
+              email: trimmedEmail,
+              password: trimmedPassword,
             }
-          });
-        } else {
-          // Institute users - go to institute signup page
-          navigate('/institute-signup', {
-            replace: true,
-            state: {
-              prefillData: {
-                adminFirstName: trimmedFirstName,
-                adminLastName: trimmedLastName,
-                adminEmail: trimmedEmail,
-                adminPassword: trimmedPassword,
-              }
-            }
-          });
-        }
+          }
+        });
       } else {
         // LOGIN FLOW: Trim and validate before API call
         const trimmedEmail = formData.email?.trim() || '';
@@ -219,48 +203,6 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* User Type Selection for both Login and Signup */}
-          {(type === 'login' || type === 'signup') && (
-            <div className="space-y-3">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                {type === 'login' ? 'I am logging in as' : 'I am signing up as'}
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setUserType('individual')}
-                  className={`p-4 rounded-lg border-2 transition-all ${userType === 'individual'
-                    ? 'border-neon-blue bg-neon-blue/10 text-white'
-                    : 'border-gray-700 bg-dark-900 text-gray-400 hover:border-gray-600'
-                    }`}
-                >
-                  <UserIcon className="w-6 h-6 mx-auto mb-2" />
-                  <p className="font-medium text-sm">Individual</p>
-                  <p className="text-xs mt-1 opacity-70">Personal use</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (type === 'login') {
-                      // Redirect to institute admin login page
-                      navigate('/institute-admin/login');
-                    } else {
-                      setUserType('institute');
-                    }
-                  }}
-                  className={`p-4 rounded-lg border-2 transition-all ${userType === 'institute'
-                    ? 'border-neon-purple bg-neon-purple/10 text-white'
-                    : 'border-gray-700 bg-dark-900 text-gray-400 hover:border-gray-600'
-                    }`}
-                >
-                  <Building2 className="w-6 h-6 mx-auto mb-2" />
-                  <p className="font-medium text-sm">Institute Admin</p>
-                  <p className="text-xs mt-1 opacity-70">For organization</p>
-                </button>
-              </div>
-            </div>
-          )}
-
           {type === 'signup' && (
             <>
               <div className="space-y-2">
