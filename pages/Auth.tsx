@@ -29,8 +29,11 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
     e.preventDefault();
     setError('');
 
+    console.log('[Auth] Form submitted, type:', type);
+
     try {
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      console.log('[Auth] API_BASE_URL:', API_BASE_URL);
 
       if (type === 'signup') {
         // NEW FLOW: Don't create account yet, go to plan selection first
@@ -82,6 +85,9 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
         const trimmedEmail = formData.email?.trim() || '';
         const trimmedPassword = formData.password?.trim() || '';
 
+        console.log('[Login] Email:', trimmedEmail);
+        console.log('[Login] Password length:', trimmedPassword.length);
+
         if (!trimmedEmail) {
           throw new Error('Email is required');
         }
@@ -96,10 +102,14 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
           throw new Error('Please enter a valid email address');
         }
 
+        console.log('[Login] Validation passed, calling API...');
         setLoading(true);
 
         // Call Login API with trimmed values
-        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        const loginUrl = `${API_BASE_URL}/auth/login`;
+        console.log('[Login] Fetching:', loginUrl);
+
+        const response = await fetch(loginUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -108,19 +118,28 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
           }),
         });
 
+        console.log('[Login] Response status:', response.status);
+
         const data = await response.json();
+        console.log('[Login] Response data:', data);
 
         if (!response.ok) {
           throw new Error(data.error || 'Login failed');
         }
 
+        console.log('[Login] Login successful, storing token');
+
         // Store token in localStorage
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
 
+        console.log('[Login] Updating context...');
+
         // Update context with onboarding status
         login(data.user.firstName || 'User', formData.email, data.user.onboardingCompleted);
         setLoading(false);
+
+        console.log('[Login] Showing welcome popup');
 
         // Show welcome popup
         setWelcomeName(data.user.firstName || 'User');
@@ -128,10 +147,14 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
 
         // Navigate to dashboard after showing welcome
         setTimeout(() => {
+          console.log('[Login] Navigating to dashboard');
           navigate('/dashboard');
         }, 2000);
       }
     } catch (err: any) {
+      console.error('[Auth] Error occurred:', err);
+      console.error('[Auth] Error message:', err.message);
+      console.error('[Auth] Error stack:', err.stack);
       setError(err.message || 'An error occurred. Please try again.');
       setLoading(false);
     }
