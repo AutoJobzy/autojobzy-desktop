@@ -71,7 +71,9 @@ const AdminOverview: React.FC = () => {
   const fetchAnalytics = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch('https://api.autojobzy.com/api/admin/analytics/overview', {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
+      const response = await fetch(`${API_BASE_URL}/admin/analytics/overview`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

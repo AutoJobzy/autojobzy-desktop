@@ -86,7 +86,7 @@ const SuperAdminInstitutes: React.FC = () => {
   const fetchPackages = async () => {
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/packages`, {
         headers: {
@@ -108,7 +108,7 @@ const SuperAdminInstitutes: React.FC = () => {
   const fetchInstitutes = async () => {
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/institutes`, {
         headers: {
@@ -135,7 +135,7 @@ const SuperAdminInstitutes: React.FC = () => {
 
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       // Create institute
       const response = await fetch(`${API_BASE_URL}/superadmin/institutes`, {
@@ -216,7 +216,7 @@ const SuperAdminInstitutes: React.FC = () => {
 
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/institutes/${institute.id}`, {
         method: 'DELETE',
@@ -244,7 +244,7 @@ const SuperAdminInstitutes: React.FC = () => {
     try {
       setProcessingApproval(institute.id);
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/institutes/${institute.id}/approve`, {
         method: 'POST',
@@ -276,7 +276,7 @@ const SuperAdminInstitutes: React.FC = () => {
     try {
       setProcessingApproval(institute.id);
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/institutes/${institute.id}/reject`, {
         method: 'POST',

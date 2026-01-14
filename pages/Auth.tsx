@@ -8,6 +8,7 @@ interface AuthProps {
 }
 
 const Auth: React.FC<AuthProps> = ({ type }) => {
+  console.log('[Auth] Component rendering, type:', type);
   const { login } = useApp();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -331,6 +332,11 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
 
           <button
             type="submit"
+            onClick={() => {
+              console.log('[Auth] BUTTON CLICKED!');
+              console.log('[Auth] Button disabled?', loading || showWelcome || (type === 'signup' && !acceptedTerms));
+              console.log('[Auth] Loading:', loading, 'ShowWelcome:', showWelcome, 'Type:', type);
+            }}
             disabled={loading || showWelcome || (type === 'signup' && !acceptedTerms)}
             className="w-full bg-neon-blue text-black font-bold py-3 rounded-lg hover:bg-white transition-colors flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,243,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed"
           >

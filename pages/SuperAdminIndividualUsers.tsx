@@ -62,7 +62,7 @@ const SuperAdminIndividualUsers: React.FC = () => {
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       // Fetch only individual users (role='user' or 'admin', no instituteId)
       const response = await fetch(`${API_BASE_URL}/superadmin/users?role=user`, {

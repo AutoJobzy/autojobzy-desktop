@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Search, UserCheck, UserX, CreditCard, Trash2, RefreshCw, Plus, Edit2, Key, X, Eye, Calendar, Activity, Target, TrendingUp } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
 interface User {
   id: string;
   email: string;
@@ -97,6 +99,7 @@ const AdminUsers: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('adminToken');
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
       const params = new URLSearchParams({
         page: page.toString(),
         limit: '20',
@@ -105,7 +108,7 @@ const AdminUsers: React.FC = () => {
         role: 'user',
       });
 
-      const response = await fetch(`https://api.autojobzy.com/api/admin/users?${params}`, {
+      const response = await fetch(`${API_BASE_URL}/admin/users?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 
@@ -124,7 +127,8 @@ const AdminUsers: React.FC = () => {
   const fetchPlans = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch('https://api.autojobzy.com/api/admin/plans', {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_BASE_URL}/admin/plans`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
@@ -139,7 +143,8 @@ const AdminUsers: React.FC = () => {
   const createUser = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch('https://api.autojobzy.com/api/auth/signup', {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_BASE_URL}/auth/signup`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -167,7 +172,8 @@ const AdminUsers: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`https://api.autojobzy.com/api/admin/users/${selectedUser.id}`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_BASE_URL}/admin/users/${selectedUser.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -192,7 +198,8 @@ const AdminUsers: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`https://api.autojobzy.com/api/admin/users/${selectedUser.id}/password`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_BASE_URL}/admin/users/${selectedUser.id}/password`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -216,10 +223,11 @@ const AdminUsers: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
       const startDate = new Date().toISOString().split('T')[0];
       const endDate = new Date(Date.now() + planDuration * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-      const response = await fetch(`https://api.autojobzy.com/api/admin/users/${selectedUser.id}/change-plan`, {
+      const response = await fetch(`${API_BASE_URL}/admin/users/${selectedUser.id}/change-plan`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -242,7 +250,8 @@ const AdminUsers: React.FC = () => {
   const toggleUserStatus = async (userId: string, currentStatus: boolean) => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`https://api.autojobzy.com/api/admin/users/${userId}/status`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/status`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -262,7 +271,8 @@ const AdminUsers: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`https://api.autojobzy.com/api/admin/users/${userId}`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -310,7 +320,8 @@ const AdminUsers: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`https://api.autojobzy.com/api/admin/users/${user.id}`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${API_BASE_URL}/admin/users/${user.id}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 

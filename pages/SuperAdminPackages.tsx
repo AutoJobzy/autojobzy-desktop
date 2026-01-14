@@ -66,7 +66,7 @@ const SuperAdminPackages: React.FC = () => {
   const fetchPackages = async () => {
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/packages`, {
         headers: {
@@ -93,7 +93,7 @@ const SuperAdminPackages: React.FC = () => {
 
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/packages`, {
         method: 'POST',
@@ -130,7 +130,7 @@ const SuperAdminPackages: React.FC = () => {
 
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/packages/${editingPackage.id}`, {
         method: 'PUT',
@@ -166,7 +166,7 @@ const SuperAdminPackages: React.FC = () => {
   const handleToggleActive = async (pkg: Package) => {
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/packages/${pkg.id}`, {
         method: 'PUT',
@@ -197,7 +197,7 @@ const SuperAdminPackages: React.FC = () => {
 
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/packages/${pkg.id}`, {
         method: 'DELETE',

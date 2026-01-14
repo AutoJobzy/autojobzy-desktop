@@ -38,6 +38,8 @@ extraResources:
     to: server
     filter:
       - "**/*"
+  - from: .env
+    to: .env
   - from: node_modules/puppeteer/.local-chromium
     to: .local-chromium
     filter:

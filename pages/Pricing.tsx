@@ -102,7 +102,7 @@ const Pricing: React.FC = () => {
       try {
         // Create guest order (no authentication required)
         console.log('[Pricing] Creating guest order for plan:', plan.id);
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
         const response = await fetch(`${API_BASE_URL}/subscription/create-guest-order`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

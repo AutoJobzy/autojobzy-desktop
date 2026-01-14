@@ -6,9 +6,30 @@
 
 const { spawn } = require('child_process');
 const path = require('path');
+const { app } = require('electron');
+const fs = require('fs');
+const os = require('os');
 
 let serverProcess = null;
-const isDev = process.env.NODE_ENV === 'development';
+
+// Use a function to check if in dev mode (app.isPackaged may not be available at module load time)
+function isDev() {
+  return !app.isPackaged;
+}
+
+// Debug log file
+const debugLogPath = path.join(os.tmpdir(), 'autojobzy-server-debug.log');
+
+function debugLog(message) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}\n`;
+  console.log(message);
+  try {
+    fs.appendFileSync(debugLogPath, logMessage);
+  } catch (e) {
+    // Ignore write errors
+  }
+}
 
 /**
  * Start the backend server process
@@ -19,14 +40,43 @@ async function startBackendServer() {
     let settled = false; // Track if promise is already resolved/rejected
 
     try {
-      // Determine server path and working directory
-      const serverPath = isDev
-        ? path.join(__dirname, '../server/index.js')
-        : path.join(process.resourcesPath, 'app.asar.unpacked/server/index.js');
+      const devMode = isDev();
 
-      const workingDir = isDev
+      debugLog('=== Starting Backend Server ===');
+      debugLog(`isDev(): ${devMode}`);
+      debugLog(`app.isPackaged: ${app.isPackaged}`);
+      debugLog(`process.resourcesPath: ${process.resourcesPath}`);
+      debugLog(`__dirname: ${__dirname}`);
+
+      // Determine server path and working directory
+      // In production, server files are in Resources/server/ (via extraResources)
+      const serverPath = devMode
+        ? path.join(__dirname, '../server/index.js')
+        : path.join(process.resourcesPath, 'server/index.js');
+
+      const workingDir = devMode
         ? path.join(__dirname, '..')
-        : process.resourcesPath;
+        : process.resourcesPath; // .env is in Resources/ root
+
+      debugLog(`Server path: ${serverPath}`);
+      debugLog(`Working directory: ${workingDir}`);
+      debugLog(`Node.js path: ${process.execPath}`);
+
+      // Check if server file exists
+      if (!fs.existsSync(serverPath)) {
+        const error = `Server file not found at: ${serverPath}`;
+        debugLog(`ERROR: ${error}`);
+        throw new Error(error);
+      }
+      debugLog('✓ Server file exists');
+
+      // Check if working directory exists
+      if (!fs.existsSync(workingDir)) {
+        const error = `Working directory not found: ${workingDir}`;
+        debugLog(`ERROR: ${error}`);
+        throw new Error(error);
+      }
+      debugLog('✓ Working directory exists');
 
       console.log('Starting backend server from:', serverPath);
       console.log('Working directory:', workingDir);
@@ -34,15 +84,18 @@ async function startBackendServer() {
 
       // Use Electron's built-in Node.js instead of system node
       // This ensures we don't get "node ENOENT" errors
+      debugLog('Spawning server process...');
       serverProcess = spawn(process.execPath, [serverPath], {
         cwd: workingDir, // Set working directory so .env is found
         env: {
           ...process.env,
-          NODE_ENV: isDev ? 'development' : 'production',
+          NODE_ENV: devMode ? 'development' : 'production',
           ELECTRON_RUN_AS_NODE: '1', // Run as Node.js, not Electron
         },
         stdio: ['inherit', 'pipe', 'pipe'], // Capture stdout and stderr
       });
+
+      debugLog(`✓ Server process spawned with PID: ${serverProcess.pid}`);
 
       // Capture and log stdout
       if (serverProcess.stdout) {
@@ -60,7 +113,9 @@ async function startBackendServer() {
 
       // Handle process events
       serverProcess.on('error', (error) => {
-        console.error('Backend server error:', error);
+        const errorMsg = `Backend server error: ${error.message}`;
+        console.error(errorMsg);
+        debugLog(`ERROR: ${errorMsg}`);
         if (!settled) {
           settled = true;
           reject(error);
@@ -68,7 +123,9 @@ async function startBackendServer() {
       });
 
       serverProcess.on('exit', (code) => {
-        console.log(`Backend server exited with code ${code}`);
+        const exitMsg = `Backend server exited with code ${code}`;
+        console.log(exitMsg);
+        debugLog(exitMsg);
         if (code !== 0 && code !== null && !settled) {
           settled = true;
           reject(new Error(`Server exited with code ${code}`));

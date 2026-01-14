@@ -66,7 +66,9 @@ const AdminPlans: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('adminToken');
-      const response = await fetch('https://api.autojobzy.com/api/admin/plans', {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
+      const response = await fetch(`${API_BASE_URL}/admin/plans`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -174,7 +176,9 @@ const AdminPlans: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch('https://api.autojobzy.com/api/admin/plans', {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
+      const response = await fetch(`${API_BASE_URL}/admin/plans`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -229,7 +233,9 @@ const AdminPlans: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`https://api.autojobzy.com/api/admin/plans/${editingPlan.id}`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
+      const response = await fetch(`${API_BASE_URL}/admin/plans/${editingPlan.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -259,7 +265,9 @@ const AdminPlans: React.FC = () => {
   const togglePlanStatus = async (planId: string, currentStatus: boolean) => {
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`https://api.autojobzy.com/api/admin/plans/${planId}`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
+      const response = await fetch(`${API_BASE_URL}/admin/plans/${planId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -285,7 +293,9 @@ const AdminPlans: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const response = await fetch(`https://api.autojobzy.com/api/admin/plans/${planId}`, {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
+      const response = await fetch(`${API_BASE_URL}/admin/plans/${planId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });

@@ -9,15 +9,35 @@ const path = require('path');
 const { fork } = require('child_process');
 const { startBackendServer, stopBackendServer } = require('./server.js');
 const { initLogger, closeLogger } = require('./logger.js');
+const fs = require('fs');
+const os = require('os');
 
 let mainWindow = null;
 let serverProcess = null;
 let logFilePath = null;
 
+// Debug log file (same as server.js)
+const debugLogPath = path.join(os.tmpdir(), 'autojobzy-server-debug.log');
+
+function debugLog(message) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] [MAIN] ${message}\n`;
+  console.log(`[MAIN] ${message}`);
+  try {
+    fs.appendFileSync(debugLogPath, logMessage);
+  } catch (e) {
+    // Ignore write errors
+  }
+}
+
 // Configuration
-const isDev = process.env.NODE_ENV === 'development';
 const VITE_DEV_SERVER_URL = 'http://localhost:5173';
 const SERVER_PORT = process.env.PORT || 5000;
+
+// Use a function to check if in dev mode (app.isPackaged may not be available at module load time)
+function isDev() {
+  return !app.isPackaged;
+}
 
 // Initialize logger immediately
 try {
@@ -46,7 +66,7 @@ function createWindow() {
   });
 
   // Load the app
-  if (isDev) {
+  if (isDev()) {
     // Development: Load from Vite dev server
     mainWindow.loadURL(VITE_DEV_SERVER_URL);
     mainWindow.webContents.openDevTools(); // Open DevTools in development
@@ -56,11 +76,11 @@ function createWindow() {
     console.log('Loading index.html from:', indexPath);
     mainWindow.loadFile(indexPath);
 
-    // Enable DevTools in production for debugging
-    // Open after a short delay to ensure window is ready
-    setTimeout(() => {
-      mainWindow.webContents.openDevTools();
-    }, 500);
+    // FORCE DevTools to open immediately
+    mainWindow.webContents.on('did-finish-load', () => {
+      mainWindow.webContents.openDevTools({ mode: 'right' });
+      console.log('✅ DevTools opened');
+    });
   }
 
   // Log any load failures
@@ -96,19 +116,38 @@ function createWindow() {
  * App lifecycle: Ready
  */
 app.whenReady().then(async () => {
+  // Write startup marker
+  try {
+    fs.writeFileSync('/tmp/autojobzy-startup.txt', `App started at ${new Date().toISOString()}\n`);
+  } catch(e) {}
+
+  debugLog('=== Electron App Starting ===');
   console.log('🚀 Electron app starting...');
 
   // Create window first so we can show errors
   createWindow();
 
+  // Log the mode detection
+  const devMode = isDev();
+  debugLog(`isDev(): ${devMode}`);
+  debugLog(`app.isPackaged: ${app.isPackaged}`);
+  debugLog(`process.resourcesPath: ${process.resourcesPath}`);
+  debugLog(`__dirname: ${__dirname}`);
+
+  console.log(`🔍 App mode: ${devMode ? 'DEVELOPMENT' : 'PRODUCTION (PACKAGED)'}`);
+  console.log(`📦 app.isPackaged: ${app.isPackaged}`);
+
   // Start backend server ONLY in production mode
   // In development, concurrently already starts the server
-  if (!isDev) {
+  if (!devMode) {
     try {
+      debugLog('Starting backend server (production mode)...');
       console.log('🔄 Starting backend server...');
       await startBackendServer();
+      debugLog(`✓ Backend server started successfully`);
       console.log(`✅ Backend server started on http://localhost:${SERVER_PORT}`);
     } catch (error) {
+      debugLog(`ERROR: Failed to start backend server: ${error.message}`);
       console.error('❌ Failed to start backend server:', error);
       console.error('Log file:', logFilePath);
 
@@ -116,6 +155,7 @@ app.whenReady().then(async () => {
       // App will continue to work if server recovers or is already running
     }
   } else {
+    debugLog('Development mode: Not starting backend server');
     console.log('⚡ Development mode: Using external backend server on port', SERVER_PORT);
   }
 
@@ -144,7 +184,7 @@ app.on('before-quit', async () => {
   console.log('🛑 Application shutting down...');
 
   // Only stop server if we started it (production mode)
-  if (!isDev) {
+  if (!isDev()) {
     console.log('🛑 Shutting down backend server...');
     await stopBackendServer();
   }
