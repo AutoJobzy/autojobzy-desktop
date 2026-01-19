@@ -140,7 +140,9 @@ router.get('/', authenticateToken, async (req, res) => {
             console.log('No job settings found, creating default for userId:', req.userId);
             try {
                 const created = await JobSettings.create({ userId: req.userId });
-                return res.json(created);
+                const response = created.toJSON();
+                response.name = response.fullName || 'User';
+                return res.json(response);
             } catch (createError) {
                 // If foreign key error, user doesn't exist - they need to re-login
                 if (createError.name === 'SequelizeForeignKeyConstraintError') {
@@ -154,7 +156,10 @@ router.get('/', authenticateToken, async (req, res) => {
             }
         }
 
-        res.json(jobSettings);
+        // Return settings with normalized field names for AI answers
+        const response = jobSettings.toJSON();
+        response.name = response.fullName || 'User';  // Add name field for AI
+        res.json(response);
     } catch (error) {
         console.error('Fetch job settings error:', error.message);
         res.status(500).json({ error: 'Failed to fetch job settings', details: error.message });

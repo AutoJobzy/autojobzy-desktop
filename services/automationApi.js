@@ -4,8 +4,11 @@
  * Use this in your React components to talk to the automation server
  */
 
-// Desktop app ALWAYS uses localhost backend
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+import { fetchWithTimeout, safeJsonParse } from '../utils/fetchWithTimeout.js';
+import { getTimeoutForPlatform, debugLog, getPlatformSpecificError } from '../utils/platformDetection.js';
+
+// Remote backend server
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
 /**
  * Read auth token from localStorage (or another storage you use)
@@ -24,8 +27,12 @@ function getToken() {
  * @param {string} method
  * @param {object|null} body
  * @param {boolean} includeAuth
+ * @param {number} timeout - Optional custom timeout
  */
-async function apiCall(endpoint, method = 'GET', body = null, includeAuth = true) {
+async function apiCall(endpoint, method = 'GET', body = null, includeAuth = true, timeout = null) {
+    const url = `${API_BASE_URL}${endpoint}`;
+    debugLog(`API Call: ${method} ${url}`);
+
     try {
         const headers = {};
 
@@ -48,23 +55,37 @@ async function apiCall(endpoint, method = 'GET', body = null, includeAuth = true
             options.body = body instanceof FormData ? body : JSON.stringify(body);
         }
 
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+        // Use platform-specific timeout (Windows gets 50% longer)
+        const effectiveTimeout = timeout || getTimeoutForPlatform(30000);
+        const response = await fetchWithTimeout(url, options, effectiveTimeout);
 
         if (!response.ok) {
             // Try to parse error body
             let errText = `HTTP ${response.status}`;
             try {
-                const errJson = await response.json();
-                errText = errJson.error || JSON.stringify(errJson);
+                const errJson = await safeJsonParse(response);
+                errText = errJson.error || errJson.message || JSON.stringify(errJson);
             } catch (e) {
-                // ignore
+                // If JSON parse fails, try text
+                try {
+                    const errTextContent = await response.text();
+                    if (errTextContent) errText += `: ${errTextContent.substring(0, 200)}`;
+                } catch (e2) {
+                    // ignore
+                }
             }
-            throw new Error(errText);
+            const error = new Error(errText);
+            error.status = response.status;
+            throw error;
         }
 
-        return await response.json();
+        return await safeJsonParse(response);
     } catch (error) {
-        throw error;
+        // Add platform-specific error context
+        const contextError = new Error(getPlatformSpecificError(error, endpoint));
+        contextError.originalError = error;
+        debugLog(`API Error: ${method} ${url}`, error);
+        throw contextError;
     }
 }
 
@@ -92,8 +113,16 @@ export async function checkBackendHealth() {
  * @param {string} options.resumeText - Resume content
  */
 export async function startAutomation(options = {}) {
-    return apiCall('/automation/start', 'POST', options);
+    // Redirect to runBot which handles both Electron and server modes
+    return runBot(options);
 }
+
+/**
+ * Check if running in Electron
+ */
+const isElectron = () => {
+    return typeof window !== 'undefined' && window.electronAPI;
+};
 
 /**
  * Run bot with full data loading from database
@@ -105,7 +134,25 @@ export async function startAutomation(options = {}) {
  * @param {string} [options.searchKeywords] - Job search keywords (optional)
  */
 export async function runBot(options = {}) {
-    return apiCall('/automation/run-bot', 'POST', options);
+    if (isElectron()) {
+        // Run automation LOCALLY in Electron with visible browser
+        console.log('🖥️  Running automation LOCALLY in Electron');
+
+        const token = getToken();
+        const userId = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).id : null;
+
+        const result = await window.electronAPI.startAutomation({
+            ...options,
+            token,
+            userId
+        });
+
+        return result;
+    } else {
+        // Fallback to remote AWS server (for web version)
+        console.log('☁️  Running automation on AWS server');
+        return apiCall('/automation/run-bot', 'POST', options);
+    }
 }
 
 
@@ -113,35 +160,67 @@ export async function runBot(options = {}) {
  * Stop currently running automation
  */
 export async function stopAutomation() {
-    return apiCall('/automation/stop', 'POST');
+    if (isElectron()) {
+        return window.electronAPI.stopAutomation();
+    } else {
+        return apiCall('/automation/stop', 'POST');
+    }
 }
 
 /**
  * Get automation logs
  */
 export async function getAutomationLogs() {
-    return apiCall('/automation/logs', 'GET');
+    if (isElectron()) {
+        return window.electronAPI.getAutomationLogs();
+    } else {
+        return apiCall('/automation/logs', 'GET');
+    }
 }
 
 /**
  * Clear logs
  */
 export async function clearLogs() {
-    return apiCall('/automation/clear-logs', 'POST');
+    if (isElectron()) {
+        // Local automation: logs are managed in memory, just return success
+        return { success: true, message: 'Logs cleared (local mode)' };
+    } else {
+        return apiCall('/automation/clear-logs', 'POST');
+    }
 }
 
 /**
  * Reset automation state (for stuck/error recovery)
  */
 export async function resetAutomation() {
-    return apiCall('/automation/reset', 'POST');
+    if (isElectron()) {
+        // Local automation: state is managed locally, no reset needed
+        // Just stop automation if running
+        const isRunning = await window.electronAPI.isAutomationRunning();
+        if (isRunning) {
+            return window.electronAPI.stopAutomation();
+        }
+        return { success: true, message: 'Automation reset (local mode)' };
+    } else {
+        return apiCall('/automation/reset', 'POST');
+    }
 }
 
 /**
  * Get automation status
  */
 export async function getAutomationStatus() {
-    return apiCall('/automation/status', 'GET');
+    if (isElectron()) {
+        const isRunning = await window.electronAPI.isAutomationRunning();
+        return {
+            success: true,
+            running: isRunning,
+            message: isRunning ? 'Automation running locally' : 'Automation not running'
+        };
+    } else {
+        return apiCall('/automation/status', 'GET');
+    }
 }
 
 /**
@@ -326,19 +405,49 @@ export async function saveUserFilters(filters) {
 /**
  * Poll logs until automation completes
  * @param {Function} onUpdate - Callback for each log update
+ * @param {Function} onError - Callback for errors (optional)
  * @param {number} interval - Poll interval in ms (default 2000)
+ * @param {number} maxRetries - Maximum consecutive errors before stopping (default 5)
  */
-export async function pollLogs(onUpdate, interval = 2000) {
+export async function pollLogs(onUpdate, onError = null, interval = 2000, maxRetries = 5) {
+    let consecutiveErrors = 0;
+    let pollCount = 0;
+    const maxPolls = 300; // 10 minutes max (300 * 2s)
+
     const pollInterval = setInterval(async () => {
+        pollCount++;
+
+        // Safety: stop after 10 minutes
+        if (pollCount > maxPolls) {
+            clearInterval(pollInterval);
+            debugLog('Poll logs: Max poll count reached (10 minutes)');
+            if (onError) onError(new Error('Polling timeout after 10 minutes'));
+            return;
+        }
+
         try {
             const { logs, isRunning } = await getAutomationLogs();
             onUpdate(logs);
 
+            // Reset error counter on success
+            consecutiveErrors = 0;
+
             if (!isRunning && logs.length > 0) {
                 clearInterval(pollInterval);
+                debugLog('Poll logs: Automation completed');
             }
         } catch (error) {
-            clearInterval(pollInterval);
+            consecutiveErrors++;
+            debugLog(`Poll logs error (attempt ${consecutiveErrors}/${maxRetries})`, error);
+
+            // Only stop polling after max consecutive errors
+            if (consecutiveErrors >= maxRetries) {
+                clearInterval(pollInterval);
+                const errorMsg = `Polling failed after ${maxRetries} attempts: ${error.message}`;
+                console.error(errorMsg);
+                if (onError) onError(new Error(errorMsg));
+            }
+            // Otherwise continue polling (transient error)
         }
     }, interval);
 

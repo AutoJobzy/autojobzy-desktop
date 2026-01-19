@@ -49,7 +49,7 @@ const InstituteSignup: React.FC = () => {
     setLoading(true);
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       // Validate all fields
       if (!formData.instituteName.trim() || !formData.instituteEmail.trim() ||

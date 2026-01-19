@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Crown, Lock, Mail, AlertCircle } from 'lucide-react';
+import { fetchWithTimeout, safeJsonParse } from '../utils/fetchWithTimeout';
+import { getTimeoutForPlatform, debugLog, getPlatformSpecificError } from '../utils/platformDetection';
 
 const SuperAdminLogin: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -35,37 +37,48 @@ const SuperAdminLogin: React.FC = () => {
     }
 
     setLoading(true);
+    debugLog('[SuperAdminLogin] Starting login', { email: trimmedEmail });
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const timeout = getTimeoutForPlatform(30000);
 
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),
-      });
+      }, timeout);
 
-      const data = await response.json();
+      debugLog('[SuperAdminLogin] Response received', { status: response.status });
 
-      if (response.ok) {
-        // Check if user is superadmin
-        if (data.user.role !== 'superadmin') {
-          setError('Super Admin access required. Unauthorized access.');
-          setLoading(false);
-          return;
-        }
-
-        // Store super admin token and user data
-        localStorage.setItem('superAdminToken', data.token);
-        localStorage.setItem('superAdminUser', JSON.stringify(data.user));
-
-        // Redirect to super admin dashboard
-        navigate('/superadmin/dashboard');
-      } else {
-        setError(data.error || 'Login failed');
+      // Validate response before parsing JSON
+      if (!response.ok) {
+        const data = await safeJsonParse(response);
+        throw new Error(data.error || `HTTP ${response.status}: Login failed`);
       }
-    } catch (err) {
-      setError('Network error. Please try again.');
+
+      const data = await safeJsonParse(response);
+
+      // Check if user is superadmin
+      if (data.user.role !== 'superadmin') {
+        throw new Error('Super Admin access required. Unauthorized access.');
+      }
+
+      // Store super admin token and user data
+      localStorage.setItem('superAdminToken', data.token);
+      localStorage.setItem('superAdminUser', JSON.stringify(data.user));
+
+      debugLog('[SuperAdminLogin] Login successful, redirecting to super admin dashboard');
+
+      // Redirect to super admin dashboard
+      navigate('/superadmin/dashboard');
+    } catch (err: any) {
+      console.error('[SuperAdminLogin] Error:', err);
+      debugLog('[SuperAdminLogin] Error details', err);
+
+      // Use platform-specific error messages
+      const errorMessage = getPlatformSpecificError(err, 'Super Admin Login');
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

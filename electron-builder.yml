@@ -1,5 +1,5 @@
 # Electron Builder Configuration
-# Defines how the Windows EXE is packaged and built
+# Optimized for smaller file size
 
 appId: com.autojobzy.app
 productName: AutoJobzy
@@ -10,38 +10,90 @@ directories:
   output: dist-electron
   buildResources: build
 
-# Files to include in the app
+# Files to include in the app (MINIMAL - reduce duplication)
 files:
   - dist/**/*
   - electron/**/*
-  - server/**/*
-  - node_modules/**/*
   - package.json
-  - .env
-  - .env.production
+  # DON'T include node_modules or server here - they go in extraResources
 
-# Keep asar enabled but unpack native modules and server files
+# ASAR compression for smaller size
 asar: true
 
-# Unpack these from asar for proper loading
+# Only unpack what MUST be outside ASAR (native modules)
 asarUnpack:
   - "**/*.node"
-  - "**/node_modules/puppeteer/**/*"
-  - "server/**/*"
-  - "node_modules/**/*"
-  - ".env"
-  - ".env.production"
+  - "**/puppeteer/**/*"
+  - "**/@puppeteer/**/*"
+  - "**/chrome-*/**/*"  # Chrome/Chromium executables
 
-# Extra resources (server files, etc.)
+# Extra resources (server + dependencies) - NO DUPLICATION
 extraResources:
+  # Server files
   - from: server
     to: server
     filter:
       - "**/*"
-  - from: .env
-    to: .env
+      - "!**/*.map"  # Exclude source maps
+      - "!**/*.ts"   # Exclude TypeScript files
+
+  # Utils
+  - from: utils
+    to: utils
+
+  # Environment files
+  - from: .env.production
+    to: .env.production
+
+  # Documentation
+  - from: WINDOWS_TROUBLESHOOTING.md
+    to: WINDOWS_TROUBLESHOOTING.md
+
+  # Node modules - ONLY PRODUCTION DEPENDENCIES
+  - from: node_modules
+    to: node_modules
+    filter:
+      - "**/*"
+      # Exclude dev dependencies (huge files)
+      - "!electron/**"
+      - "!electron-builder/**"
+      - "!app-builder-bin/**"
+      - "!app-builder-lib/**"
+      - "!7zip-bin/**"
+      - "!typescript/**"
+      - "!@types/**"
+      - "!vite/**"
+      - "!concurrently/**"
+      - "!cross-env/**"
+      - "!wait-on/**"
+      - "!@vitejs/**"
+      # Exclude test files
+      - "!**/test/**"
+      - "!**/tests/**"
+      - "!**/__tests__/**"
+      - "!**/*.test.js"
+      - "!**/*.spec.js"
+      # Exclude documentation
+      - "!**/*.md"
+      - "!**/LICENSE*"
+      - "!**/README*"
+      - "!**/docs/**"
+      - "!**/examples/**"
+      # Exclude source maps
+      - "!**/*.map"
+      - "!**/.bin/**"
+
+  # Puppeteer Chromium (multiple possible locations for different versions)
   - from: node_modules/puppeteer/.local-chromium
     to: .local-chromium
+    filter:
+      - "**/*"
+  - from: node_modules/puppeteer/.cache
+    to: .puppeteer-cache
+    filter:
+      - "**/*"
+  - from: node_modules/@puppeteer
+    to: .puppeteer-browsers
     filter:
       - "**/*"
 
@@ -62,15 +114,13 @@ mac:
   hardenedRuntime: false
   gatekeeperAssess: false
 
-# Windows-specific configuration
+# Windows-specific configuration (optimized for size)
 win:
   target:
-    - target: zip
-      arch:
-        - x64
     - target: nsis
       arch:
         - x64
+    # Removed zip target to save build time and space
   icon: build/icon.ico
   artifactName: AutoJobzy-${version}.${ext}
   requestedExecutionLevel: asInvoker
@@ -87,6 +137,7 @@ nsis:
   deleteAppDataOnUninstall: false
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
+  differentialPackage: false
 
 # Publish configuration (optional)
 publish: null

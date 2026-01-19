@@ -3,8 +3,11 @@
  * Frontend API functions for subscription management
  */
 
-// Desktop app ALWAYS uses localhost backend
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+import { fetchWithTimeout, safeJsonParse } from '../utils/fetchWithTimeout.js';
+import { getTimeoutForPlatform, debugLog, isWindows } from '../utils/platformDetection.js';
+
+// Remote backend server
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 const API_BASE = `${API_BASE_URL}/subscription`;
 
 /**
@@ -23,13 +26,14 @@ function getAuthHeaders() {
  */
 export async function getPlans() {
     try {
-        const response = await fetch(`${API_BASE}/plans`, {
+        const response = await fetchWithTimeout(`${API_BASE}/plans`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
-        });
-        return await response.json();
+        }, getTimeoutForPlatform(30000));
+        return await safeJsonParse(response);
     } catch (error) {
         console.error('Get plans error:', error);
+        debugLog('Get plans error', error);
         return { success: false, error: error.message };
     }
 }
@@ -39,13 +43,14 @@ export async function getPlans() {
  */
 export async function getPlanById(planId) {
     try {
-        const response = await fetch(`${API_BASE}/plan/${planId}`, {
+        const response = await fetchWithTimeout(`${API_BASE}/plan/${planId}`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
-        });
-        return await response.json();
+        }, getTimeoutForPlatform(30000));
+        return await safeJsonParse(response);
     } catch (error) {
         console.error('Get plan error:', error);
+        debugLog('Get plan error', error);
         return { success: false, error: error.message };
     }
 }
@@ -55,14 +60,15 @@ export async function getPlanById(planId) {
  */
 export async function createOrder(planId) {
     try {
-        const response = await fetch(`${API_BASE}/create-order`, {
+        const response = await fetchWithTimeout(`${API_BASE}/create-order`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify({ planId }),
-        });
-        return await response.json();
+        }, getTimeoutForPlatform(30000));
+        return await safeJsonParse(response);
     } catch (error) {
         console.error('Create order error:', error);
+        debugLog('Create order error', error);
         return { success: false, error: error.message };
     }
 }
@@ -72,14 +78,15 @@ export async function createOrder(planId) {
  */
 export async function verifyPayment(paymentData) {
     try {
-        const response = await fetch(`${API_BASE}/verify-payment`, {
+        const response = await fetchWithTimeout(`${API_BASE}/verify-payment`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(paymentData),
-        });
-        return await response.json();
+        }, getTimeoutForPlatform(30000));
+        return await safeJsonParse(response);
     } catch (error) {
         console.error('Verify payment error:', error);
+        debugLog('Verify payment error', error);
         return { success: false, error: error.message };
     }
 }
@@ -89,13 +96,14 @@ export async function verifyPayment(paymentData) {
  */
 export async function getSubscriptionStatus() {
     try {
-        const response = await fetch(`${API_BASE}/status`, {
+        const response = await fetchWithTimeout(`${API_BASE}/status`, {
             method: 'GET',
             headers: getAuthHeaders(),
-        });
-        return await response.json();
+        }, getTimeoutForPlatform(30000));
+        return await safeJsonParse(response);
     } catch (error) {
         console.error('Get subscription status error:', error);
+        debugLog('Get subscription status error', error);
         return { success: false, error: error.message };
     }
 }
@@ -105,19 +113,20 @@ export async function getSubscriptionStatus() {
  */
 export async function getSubscriptionHistory() {
     try {
-        const response = await fetch(`${API_BASE}/history`, {
+        const response = await fetchWithTimeout(`${API_BASE}/history`, {
             method: 'GET',
             headers: getAuthHeaders(),
-        });
-        return await response.json();
+        }, getTimeoutForPlatform(30000));
+        return await safeJsonParse(response);
     } catch (error) {
         console.error('Get subscription history error:', error);
+        debugLog('Get subscription history error', error);
         return { success: false, error: error.message };
     }
 }
 
 /**
- * Load Razorpay script dynamically
+ * Load Razorpay script dynamically with timeout
  */
 export function loadRazorpayScript() {
     return new Promise((resolve) => {
@@ -127,16 +136,37 @@ export function loadRazorpayScript() {
             return;
         }
 
+        debugLog('[Razorpay] Loading SDK from CDN...');
         console.log('[Razorpay] Loading SDK from CDN...');
+
+        // Timeout for script loading (10s on Windows, 5s on Mac)
+        const timeout = isWindows() ? 10000 : 5000;
+        let timedOut = false;
+
+        const timeoutId = setTimeout(() => {
+            timedOut = true;
+            console.error(`[Razorpay] Failed to load SDK (timeout after ${timeout}ms)`);
+            debugLog(`Razorpay SDK load timeout (Windows firewall issue?)`);
+            resolve(false);
+        }, timeout);
+
         const script = document.createElement('script');
         script.src = 'https://checkout.razorpay.com/v1/checkout.js';
         script.onload = () => {
-            console.log('[Razorpay] SDK loaded successfully');
-            resolve(true);
+            if (!timedOut) {
+                clearTimeout(timeoutId);
+                console.log('[Razorpay] SDK loaded successfully');
+                debugLog('[Razorpay] SDK loaded successfully');
+                resolve(true);
+            }
         };
         script.onerror = () => {
-            console.error('[Razorpay] Failed to load SDK from CDN');
-            resolve(false);
+            if (!timedOut) {
+                clearTimeout(timeoutId);
+                console.error('[Razorpay] Failed to load SDK from CDN');
+                debugLog('[Razorpay] Failed to load SDK (network error or CDN blocked)');
+                resolve(false);
+            }
         };
         document.body.appendChild(script);
     });
@@ -215,17 +245,29 @@ export async function initiatePayment(orderData, userInfo, onSuccess, onFailure)
     console.log('[Razorpay] Opening payment modal with key:', orderData.keyId);
 
     try {
+        // Windows: verify Razorpay is available before creating instance
+        if (!window.Razorpay) {
+            const error = 'Razorpay SDK not loaded. Please refresh and try again.';
+            console.error('[Razorpay]', error);
+            debugLog('[Razorpay] SDK not available (Windows CDN block?)');
+            onFailure({ error });
+            return;
+        }
+
         const razorpay = new window.Razorpay(options);
         razorpay.on('payment.failed', function (response) {
             console.error('[Razorpay] Payment failed:', response.error);
+            debugLog('[Razorpay] Payment failed', response.error);
             onFailure({
                 error: response.error.description || 'Payment failed',
                 code: response.error.code,
             });
         });
         razorpay.open();
+        debugLog('[Razorpay] Payment modal opened');
     } catch (err) {
         console.error('[Razorpay] Error creating Razorpay instance:', err);
+        debugLog('[Razorpay] Error creating instance', err);
         onFailure({ error: 'Failed to initialize payment. Please try again.' });
     }
 }

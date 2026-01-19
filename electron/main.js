@@ -6,14 +6,15 @@
 
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
-const { fork } = require('child_process');
-const { startBackendServer, stopBackendServer } = require('./server.js');
+// const { fork } = require('child_process'); // Not needed - using remote server
+// const { startBackendServer, stopBackendServer } = require('./server.js'); // Not needed - using remote server
+const { verifyPackage } = require('./verify-package.js');
 const { initLogger, closeLogger } = require('./logger.js');
 const fs = require('fs');
 const os = require('os');
 
 let mainWindow = null;
-let serverProcess = null;
+// let serverProcess = null; // Not needed - using remote server
 let logFilePath = null;
 
 // Debug log file (same as server.js)
@@ -32,7 +33,7 @@ function debugLog(message) {
 
 // Configuration
 const VITE_DEV_SERVER_URL = 'http://localhost:5173';
-const SERVER_PORT = process.env.PORT || 5000;
+// const SERVER_PORT = process.env.PORT || 5000; // Not needed - using remote server
 
 // Use a function to check if in dev mode (app.isPackaged may not be available at module load time)
 function isDev() {
@@ -51,6 +52,15 @@ try {
  * Create the main application window
  */
 function createWindow() {
+  // Determine preload path - handle both development and production (with ASAR)
+  // In production with ASAR, we need to use app.getAppPath() or resolve from resources
+  const preloadPath = isDev()
+    ? path.join(__dirname, 'preload.js')
+    : path.join(__dirname, 'preload.js');
+
+  console.log('🔧 Preload script path:', preloadPath);
+  console.log('🔧 Preload exists:', fs.existsSync(preloadPath));
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -59,7 +69,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
     },
     title: 'AutoJobzy',
     autoHideMenuBar: true, // Hide menu bar for cleaner look
@@ -137,26 +147,42 @@ app.whenReady().then(async () => {
   console.log(`🔍 App mode: ${devMode ? 'DEVELOPMENT' : 'PRODUCTION (PACKAGED)'}`);
   console.log(`📦 app.isPackaged: ${app.isPackaged}`);
 
-  // Start backend server ONLY in production mode
-  // In development, concurrently already starts the server
-  if (!devMode) {
-    try {
-      debugLog('Starting backend server (production mode)...');
-      console.log('🔄 Starting backend server...');
-      await startBackendServer();
-      debugLog(`✓ Backend server started successfully`);
-      console.log(`✅ Backend server started on http://localhost:${SERVER_PORT}`);
-    } catch (error) {
-      debugLog(`ERROR: Failed to start backend server: ${error.message}`);
-      console.error('❌ Failed to start backend server:', error);
-      console.error('Log file:', logFilePath);
+  // Verify package contents (especially in production)
+  console.log('\n=== 🔍 VERIFYING PACKAGE CONTENTS ===\n');
+  const verification = verifyPackage();
 
-      // Just log the error, don't show blocking dialog
-      // App will continue to work if server recovers or is already running
+  if (!verification.success) {
+    console.error('\n❌ Package verification failed!');
+    console.error('Missing critical files - backend may not work properly');
+
+    if (!devMode) {
+      // Show warning dialog in production
+      dialog.showErrorBox(
+        'Package Verification Failed',
+        `Some critical files are missing from the package:\n\n${verification.results.errors.join('\n')}\n\nThe app may not work properly.`
+      );
     }
   } else {
-    debugLog('Development mode: Not starting backend server');
-    console.log('⚡ Development mode: Using external backend server on port', SERVER_PORT);
+    console.log('\n✅ Package verification passed - all critical files found\n');
+  }
+
+  // ===== USING REMOTE SERVER =====
+  // Local backend server is DISABLED - app uses remote server at https://autojobzy.com
+  console.log('🌐 Using remote backend server: https://autojobzy.com');
+  console.log('✅ No local server startup required');
+
+  debugLog('Remote server mode: Using https://autojobzy.com');
+  debugLog('Local backend server startup is disabled');
+
+  // Show remote server notification in renderer
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.on('did-finish-load', () => {
+      mainWindow.webContents.executeJavaScript(`
+        console.log('%c🌐 Remote Server Mode', 'color: blue; font-weight: bold; font-size: 14px');
+        console.log('%cUsing backend: https://autojobzy.com', 'color: blue; font-size: 12px');
+        console.log('%c✅ No local server required', 'color: green; font-size: 12px');
+      `).catch(() => {});
+    });
   }
 
   // macOS: Re-create window when dock icon is clicked
@@ -183,11 +209,8 @@ app.on('window-all-closed', () => {
 app.on('before-quit', async () => {
   console.log('🛑 Application shutting down...');
 
-  // Only stop server if we started it (production mode)
-  if (!isDev()) {
-    console.log('🛑 Shutting down backend server...');
-    await stopBackendServer();
-  }
+  // No local server to stop - using remote server
+  console.log('🌐 Using remote server - no cleanup needed');
 
   // Close logger
   closeLogger();
@@ -207,12 +230,191 @@ ipcMain.handle('is-electron', () => {
   return true;
 });
 
-// Get server status
+// Get server status (remote server mode)
 ipcMain.handle('get-server-status', () => {
   return {
-    running: serverProcess !== null,
-    port: SERVER_PORT,
+    running: true, // Always true - using remote server
+    remote: true,
+    url: 'https://autojobzy.com',
+    message: 'Using remote backend server'
   };
+});
+
+/**
+ * LOCAL AUTOMATION IPC HANDLERS
+ * Runs Puppeteer automation locally in Electron
+ */
+let automationRunning = false;
+let currentAutomationLogs = [];
+let runNaukriAutomation = null;
+let stopAutomationFn = null;
+let automationModuleReady = false;
+let automationModuleError = null;
+
+// Dynamically import automation module (ES module)
+async function loadAutomationModule() {
+  try {
+    // Use absolute path for ES module import from CommonJS
+    const automationModulePath = path.join(__dirname, 'automation', 'naukriBot.mjs');
+    const automationModuleUrl = `file://${automationModulePath.replace(/\\/g, '/')}`;
+
+    debugLog(`Loading automation module from: ${automationModuleUrl}`);
+    debugLog(`Module path exists: ${fs.existsSync(automationModulePath)}`);
+
+    const automationModule = await import(automationModuleUrl);
+
+    runNaukriAutomation = automationModule.runNaukriAutomation;
+    stopAutomationFn = automationModule.stopAutomation;
+
+    automationModuleReady = true;
+    automationModuleError = null;
+
+    debugLog('✅ Local automation module loaded successfully');
+    console.log('✅ Local automation module loaded and ready');
+
+    // Notify renderer that module is ready
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('automation-module-ready');
+    }
+
+    return true;
+  } catch (error) {
+    automationModuleReady = false;
+    automationModuleError = error.message;
+
+    debugLog(`❌ Failed to load automation module: ${error.message}`);
+    debugLog(`Error stack: ${error.stack}`);
+    console.error('❌ Failed to load automation module:', error);
+
+    // Notify renderer about error
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('automation-module-error', error.message);
+    }
+
+    return false;
+  }
+}
+
+// Load module after app is ready
+app.whenReady().then(async () => {
+  // Wait a bit for window to be created
+  setTimeout(async () => {
+    await loadAutomationModule();
+  }, 2000);
+});
+
+// Check if automation module is ready
+ipcMain.handle('is-automation-module-ready', () => {
+  return {
+    ready: automationModuleReady,
+    error: automationModuleError
+  };
+});
+
+// Retry loading automation module
+ipcMain.handle('retry-load-automation-module', async () => {
+  console.log('🔄 Retrying automation module load...');
+  return await loadAutomationModule();
+});
+
+// Start automation locally
+ipcMain.handle('start-automation', async (event, config) => {
+  if (!runNaukriAutomation || !automationModuleReady) {
+    return {
+      success: false,
+      error: automationModuleError || 'Automation module not loaded yet. Please try again in a few seconds.',
+      needsRetry: !automationModuleReady
+    };
+  }
+
+  if (automationRunning) {
+    return {
+      success: false,
+      error: 'Automation already running'
+    };
+  }
+
+  automationRunning = true;
+  currentAutomationLogs = [];
+
+  try {
+    console.log('🖥️  Starting LOCAL automation with config:', config);
+
+    // Fetch user settings from AWS backend (for credentials only)
+    const API_BASE_URL = 'https://api.autojobzy.com/api';
+    const token = config.token;
+
+    if (!token) {
+      throw new Error('No authentication token provided');
+    }
+
+    // Fetch Naukri credentials from AWS backend
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(`${API_BASE_URL}/job-settings`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch job settings from server');
+    }
+
+    const settings = await response.json();
+
+    if (!settings.naukriEmail || !settings.naukriPassword) {
+      throw new Error('Naukri credentials not found. Please add them in Job Profile settings.');
+    }
+
+    // Run automation locally with visible browser
+    const result = await runNaukriAutomation({
+      naukriEmail: settings.naukriEmail,
+      naukriPassword: settings.naukriPassword,
+      searchKeywords: config.searchKeywords || settings.searchKeywords || 'Software Engineer',
+      maxPages: config.maxPages || 5,
+      jobUrl: settings.finalUrl || null,
+      userSettings: settings  // Pass full settings for AI answers
+    }, (log) => {
+      // Send logs to renderer in real-time
+      currentAutomationLogs.push(log);
+      if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('automation-log', log);
+      }
+    });
+
+    automationRunning = false;
+    return result;
+
+  } catch (error) {
+    console.error('Automation error:', error);
+    automationRunning = false;
+    return {
+      success: false,
+      error: error.message,
+      logs: currentAutomationLogs
+    };
+  }
+});
+
+// Get current automation logs
+ipcMain.handle('get-automation-logs', () => {
+  return currentAutomationLogs;
+});
+
+// Check if automation is running
+ipcMain.handle('is-automation-running', () => {
+  return automationRunning;
+});
+
+// Stop automation
+ipcMain.handle('stop-automation', async () => {
+  if (!stopAutomationFn) {
+    return { success: false, message: 'Automation module not loaded' };
+  }
+
+  automationRunning = false;
+  const result = await stopAutomationFn();
+  return result;
 });
 
 /**

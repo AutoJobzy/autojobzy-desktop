@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, User as UserIcon, ArrowRight, Loader2, AlertCircle, CheckCircle, Sparkles } from 'lucide-react';
+import { fetchWithTimeout, safeJsonParse } from '../utils/fetchWithTimeout';
+import { getTimeoutForPlatform, debugLog, getPlatformSpecificError } from '../utils/platformDetection';
 
 interface AuthProps {
   type: 'login' | 'signup';
@@ -33,7 +35,7 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
     console.log('[Auth] Form submitted, type:', type);
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
       console.log('[Auth] API_BASE_URL:', API_BASE_URL);
 
       if (type === 'signup') {
@@ -109,19 +111,25 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
         // Call Login API with trimmed values
         const loginUrl = `${API_BASE_URL}/auth/login`;
         console.log('[Login] Fetching:', loginUrl);
+        debugLog('[Login] Starting login request', { email: trimmedEmail });
 
-        const response = await fetch(loginUrl, {
+        // Use fetchWithTimeout with platform-specific timeout
+        const timeout = getTimeoutForPlatform(30000);
+        console.log('[Login] Using timeout:', timeout);
+
+        const response = await fetchWithTimeout(loginUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: trimmedEmail,
             password: trimmedPassword,
           }),
-        });
+        }, timeout);
 
         console.log('[Login] Response status:', response.status);
+        debugLog('[Login] Response received', { status: response.status });
 
-        const data = await response.json();
+        const data = await safeJsonParse(response);
         console.log('[Login] Response data:', data);
 
         if (!response.ok) {
@@ -156,7 +164,15 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
       console.error('[Auth] Error occurred:', err);
       console.error('[Auth] Error message:', err.message);
       console.error('[Auth] Error stack:', err.stack);
-      setError(err.message || 'An error occurred. Please try again.');
+      debugLog('[Auth] Error details', {
+        message: err.message,
+        name: err.name,
+        stack: err.stack
+      });
+
+      // Use platform-specific error messages
+      const errorMessage = getPlatformSpecificError(err, type === 'login' ? 'Login' : 'Signup');
+      setError(errorMessage);
       setLoading(false);
     }
   };
@@ -309,15 +325,13 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
                 </div>
                 <span className="text-sm text-gray-300 leading-relaxed flex-1">
                   I accept the{' '}
-                  <a
-                    href="/terms"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    to="/terms"
                     className="text-neon-blue hover:underline font-semibold"
                     onClick={(e) => e.stopPropagation()}
                   >
                     Terms and Conditions
-                  </a>
+                  </Link>
                   <span className="text-red-400 ml-1">*</span>
                 </span>
               </label>
@@ -332,8 +346,14 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
 
           <button
             type="submit"
-            onClick={() => {
+            onClick={(e) => {
+              // Prevent any default behavior and double submissions
+              if (loading || showWelcome || (type === 'signup' && !acceptedTerms)) {
+                e.preventDefault();
+                return;
+              }
               console.log('[Auth] BUTTON CLICKED!');
+              debugLog('[Auth] Button clicked', { type, loading, showWelcome });
               console.log('[Auth] Button disabled?', loading || showWelcome || (type === 'signup' && !acceptedTerms));
               console.log('[Auth] Loading:', loading, 'ShowWelcome:', showWelcome, 'Type:', type);
             }}

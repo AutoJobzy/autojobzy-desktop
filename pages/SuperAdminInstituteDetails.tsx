@@ -84,7 +84,7 @@ const SuperAdminInstituteDetails: React.FC = () => {
   const fetchInstituteDetails = async () => {
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/institutes`, {
         headers: {
@@ -120,7 +120,7 @@ const SuperAdminInstituteDetails: React.FC = () => {
   const fetchPackages = async () => {
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/packages`, {
         headers: {
@@ -148,7 +148,7 @@ const SuperAdminInstituteDetails: React.FC = () => {
     try {
       setPackageLoading(true);
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       // Calculate start and end dates
       const startDate = new Date();

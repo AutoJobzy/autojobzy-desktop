@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, Mail, Phone, MapPin, Send, Clock, MessageCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 const Contact: React.FC = () => {
   const navigate = useNavigate();
@@ -237,9 +237,9 @@ const Contact: React.FC = () => {
             <div className="mt-6 text-center">
               <p className="text-gray-400">
                 Looking for quick answers?{' '}
-                <a href="/faq" className="text-indigo-400 hover:text-indigo-300">
+                <Link to="/faq" className="text-indigo-400 hover:text-indigo-300">
                   Check our FAQ
-                </a>
+                </Link>
               </p>
             </div>
           </div>

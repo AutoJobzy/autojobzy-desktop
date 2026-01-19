@@ -9,7 +9,7 @@ import { RefreshCw, CheckCircle, XCircle, Clock, AlertCircle, Loader2 } from 'lu
 import toast from 'react-hot-toast';
 
 // API Base URL - defaults to localhost for desktop app
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
 interface UpdateStatus {
   status: 'idle' | 'running' | 'success' | 'failed';

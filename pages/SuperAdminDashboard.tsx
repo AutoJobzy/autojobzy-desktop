@@ -37,7 +37,7 @@ const SuperAdminDashboard: React.FC = () => {
   const fetchDashboardStats = async () => {
     try {
       const token = localStorage.getItem('superAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/superadmin/dashboard-stats`, {
         headers: {

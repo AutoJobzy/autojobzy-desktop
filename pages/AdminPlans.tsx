@@ -66,7 +66,7 @@ const AdminPlans: React.FC = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('adminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/admin/plans`, {
         headers: {
@@ -176,7 +176,7 @@ const AdminPlans: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/admin/plans`, {
         method: 'POST',
@@ -233,7 +233,7 @@ const AdminPlans: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/admin/plans/${editingPlan.id}`, {
         method: 'PUT',
@@ -265,7 +265,7 @@ const AdminPlans: React.FC = () => {
   const togglePlanStatus = async (planId: string, currentStatus: boolean) => {
     try {
       const token = localStorage.getItem('adminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/admin/plans/${planId}`, {
         method: 'PUT',
@@ -293,7 +293,7 @@ const AdminPlans: React.FC = () => {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/admin/plans/${planId}`, {
         method: 'DELETE',

@@ -3,8 +3,8 @@
  * Frontend API service for fetching subscription plans
  */
 
-// Desktop app ALWAYS uses localhost backend
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+// Remote backend server
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
 export interface PlanFeature {
     id: string;

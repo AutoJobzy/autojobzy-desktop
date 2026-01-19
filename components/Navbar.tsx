@@ -47,8 +47,24 @@ const Navbar: React.FC = () => {
             <div className="ml-10 flex items-center space-x-8">
               {!user.isLoggedIn ? (
                 <>
-                  <a href="/#features" className="text-gray-700 dark:text-gray-300 hover:text-neon-blue transition-colors px-3 py-2 rounded-md text-sm font-medium">Features</a>
-                  <a href="/#pricing" className="text-gray-700 dark:text-gray-300 hover:text-neon-blue transition-colors px-3 py-2 rounded-md text-sm font-medium">Pricing</a>
+                  <button
+                    onClick={() => {
+                      const element = document.getElementById('features');
+                      element?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="text-gray-700 dark:text-gray-300 hover:text-neon-blue transition-colors px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Features
+                  </button>
+                  <button
+                    onClick={() => {
+                      const element = document.getElementById('pricing');
+                      element?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="text-gray-700 dark:text-gray-300 hover:text-neon-blue transition-colors px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Pricing
+                  </button>
                   <Link to="/login">
                     <button className="border border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black dark:hover:text-black transition-all duration-300 px-6 py-2 rounded-full font-medium shadow-[0_0_15px_rgba(0,243,255,0.3)] hover:shadow-[0_0_25px_rgba(0,243,255,0.6)]">
                       Login

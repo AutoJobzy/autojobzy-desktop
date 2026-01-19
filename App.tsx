@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import Landing from './pages/Landing';
 import Auth from './pages/Auth';
 import Plans from './pages/Plans';
 import ProfileSetup from './pages/ProfileSetup';
@@ -114,7 +113,7 @@ const AppContent: React.FC = () => {
       {!isAdminRoute && <Navbar />}
       <main className="flex-grow">
         <Routes>
-          <Route path="/" element={<Landing />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<AuthRoute><Auth type="login" /></AuthRoute>} />
           <Route path="/signup" element={<AuthRoute><Auth type="signup" /></AuthRoute>} />
           <Route path="/plans" element={<ProtectedRoute><Plans /></ProtectedRoute>} />

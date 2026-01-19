@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Check, Zap, Crown, Rocket, AlertCircle, CheckCircle, Loader2, ArrowRight, UserPlus } from 'lucide-react';
 import { getPlans, createOrder, initiatePayment, getSubscriptionStatus } from '../services/subscriptionApi';
 import { useApp } from '../context/AppContext';
@@ -102,7 +102,7 @@ const Pricing: React.FC = () => {
       try {
         // Create guest order (no authentication required)
         console.log('[Pricing] Creating guest order for plan:', plan.id);
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
         const response = await fetch(`${API_BASE_URL}/subscription/create-guest-order`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -498,18 +498,18 @@ const Pricing: React.FC = () => {
         {/* Footer Links */}
         <div className="border-t border-gray-800 py-8">
           <div className="max-w-4xl mx-auto px-4 flex flex-wrap justify-center gap-6 text-sm">
-            <a href="/privacy-policy" className="text-gray-400 hover:text-white transition-colors">
+            <Link to="/privacy-policy" className="text-gray-400 hover:text-white transition-colors">
               Privacy Policy
-            </a>
-            <a href="/terms" className="text-gray-400 hover:text-white transition-colors">
+            </Link>
+            <Link to="/terms" className="text-gray-400 hover:text-white transition-colors">
               Terms & Conditions
-            </a>
-            <a href="/refund-policy" className="text-gray-400 hover:text-white transition-colors">
+            </Link>
+            <Link to="/refund-policy" className="text-gray-400 hover:text-white transition-colors">
               Refund Policy
-            </a>
-            <a href="/contact" className="text-gray-400 hover:text-white transition-colors">
+            </Link>
+            <Link to="/contact" className="text-gray-400 hover:text-white transition-colors">
               Contact Us
-            </a>
+            </Link>
           </div>
         </div>
       </div>

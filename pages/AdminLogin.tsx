@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, Lock, Mail, AlertCircle } from 'lucide-react';
+import { fetchWithTimeout, safeJsonParse } from '../utils/fetchWithTimeout';
+import { getTimeoutForPlatform, debugLog, getPlatformSpecificError } from '../utils/platformDetection';
 
 const AdminLogin: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -35,37 +37,48 @@ const AdminLogin: React.FC = () => {
     }
 
     setLoading(true);
+    debugLog('[AdminLogin] Starting login', { email: trimmedEmail });
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
+      const timeout = getTimeoutForPlatform(30000);
 
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await fetchWithTimeout(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),
-      });
+      }, timeout);
 
-      const data = await response.json();
+      debugLog('[AdminLogin] Response received', { status: response.status });
 
-      if (response.ok) {
-        // Check if user is admin
-        if (data.user.role !== 'admin') {
-          setError('Admin access required. Please use regular login.');
-          setLoading(false);
-          return;
-        }
-
-        // Store admin token and user data
-        localStorage.setItem('adminToken', data.token);
-        localStorage.setItem('adminUser', JSON.stringify(data.user));
-
-        // Redirect to admin dashboard
-        navigate('/admin/dashboard');
-      } else {
-        setError(data.error || 'Login failed');
+      // Validate response before parsing JSON
+      if (!response.ok) {
+        const data = await safeJsonParse(response);
+        throw new Error(data.error || `HTTP ${response.status}: Login failed`);
       }
-    } catch (err) {
-      setError('Network error. Please try again.');
+
+      const data = await safeJsonParse(response);
+
+      // Check if user is admin
+      if (data.user.role !== 'admin') {
+        throw new Error('Admin access required. Please use regular login.');
+      }
+
+      // Store admin token and user data
+      localStorage.setItem('adminToken', data.token);
+      localStorage.setItem('adminUser', JSON.stringify(data.user));
+
+      debugLog('[AdminLogin] Login successful, redirecting to admin dashboard');
+
+      // Redirect to admin dashboard
+      navigate('/admin/dashboard');
+    } catch (err: any) {
+      console.error('[AdminLogin] Error:', err);
+      debugLog('[AdminLogin] Error details', err);
+
+      // Use platform-specific error messages
+      const errorMessage = getPlatformSpecificError(err, 'Admin Login');
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -20,9 +20,19 @@ const Footer: React.FC = () => {
           <div>
             <h4 className="text-gray-900 dark:text-white font-bold mb-4">Product</h4>
             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-500">
-              <li><a href="#" className="hover:text-neon-blue transition-colors">Features</a></li>
-              <li><a href="#" className="hover:text-neon-blue transition-colors">Pricing</a></li>
-              <li><a href="#" className="hover:text-neon-blue transition-colors">Live Demo</a></li>
+              <li>
+                <button
+                  onClick={() => {
+                    const element = document.getElementById('features');
+                    element?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="hover:text-neon-blue transition-colors"
+                >
+                  Features
+                </button>
+              </li>
+              <li><Link to="/pricing" className="hover:text-neon-blue transition-colors">Pricing</Link></li>
+              <li><Link to="/signup" className="hover:text-neon-blue transition-colors">Live Demo</Link></li>
             </ul>
           </div>
 
@@ -40,9 +50,28 @@ const Footer: React.FC = () => {
           <div>
              <h4 className="text-gray-900 dark:text-white font-bold mb-4">Connect</h4>
              <div className="flex space-x-4">
-                <a href="#" className="text-gray-600 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"><Twitter className="w-5 h-5" /></a>
-                <a href="#" className="text-gray-600 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"><Github className="w-5 h-5" /></a>
-                <a href="#" className="text-gray-600 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"><Linkedin className="w-5 h-5" /></a>
+                {/* Replace # with actual social media URLs when available */}
+                <button
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="text-gray-600 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
+                  title="Twitter (coming soon)"
+                >
+                  <Twitter className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="text-gray-600 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
+                  title="GitHub (coming soon)"
+                >
+                  <Github className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                  className="text-gray-600 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
+                  title="LinkedIn (coming soon)"
+                >
+                  <Linkedin className="w-5 h-5" />
+                </button>
              </div>
           </div>
         </div>

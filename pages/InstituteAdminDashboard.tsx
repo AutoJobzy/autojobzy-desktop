@@ -160,7 +160,7 @@ const InstituteAdminDashboard: React.FC = () => {
         return;
       }
 
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/institute-admin/dashboard`, {
         headers: {
@@ -186,7 +186,7 @@ const InstituteAdminDashboard: React.FC = () => {
   const fetchStudents = async () => {
     try {
       const token = localStorage.getItem('instituteAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/institute-admin/students`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -207,7 +207,7 @@ const InstituteAdminDashboard: React.FC = () => {
   const fetchStaff = async () => {
     try {
       const token = localStorage.getItem('instituteAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/institute-admin/staff`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -232,7 +232,7 @@ const InstituteAdminDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('instituteAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/institute-admin/students`, {
         method: 'POST',
@@ -276,7 +276,7 @@ const InstituteAdminDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('instituteAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       await fetch(`${API_BASE_URL}/institute-admin/students/${selectedStudent.userId}/details`, {
         method: 'PUT',
@@ -332,7 +332,7 @@ const InstituteAdminDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('instituteAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(
         `${API_BASE_URL}/institute-admin/students/${selectedStudent.userId}/password`,
@@ -373,7 +373,7 @@ const InstituteAdminDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('instituteAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/institute-admin/students/${student.id}`, {
         method: 'DELETE',
@@ -408,7 +408,7 @@ const InstituteAdminDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('instituteAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(
         `${API_BASE_URL}/institute-admin/students/${student.userId}/toggle-active`,
@@ -458,7 +458,7 @@ const InstituteAdminDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('instituteAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/institute-admin/staff`, {
         method: 'POST',
@@ -504,7 +504,7 @@ const InstituteAdminDashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('instituteAdminToken');
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.autojobzy.com/api';
 
       const response = await fetch(`${API_BASE_URL}/institute-admin/staff/${staffMember.id}`, {
         method: 'DELETE',
