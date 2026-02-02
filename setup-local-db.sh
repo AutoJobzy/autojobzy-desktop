@@ -31,7 +31,7 @@ fi
 echo "📝 Updating .env file for local database..."
 cat > .env << 'EOF'
 # Frontend API Configuration
-VITE_API_BASE_URL=http://localhost:5000/api
+VITE_API_BASE_URL=https://api.autojobzy.comapi
 
 # Local MySQL Database
 DB_HOST=localhost

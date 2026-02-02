@@ -4,6 +4,7 @@ import fs from 'fs';
 import JobSettings from './models/JobSettings.js';
 import UserFilter from './models/UserFilter.js';
 import sequelize from './db/config.js';
+import { launchBrowser } from './utils/puppeteerHelper.js';
 
 function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
@@ -104,7 +105,8 @@ async function fetchUserFiltersFromDB(userId) {
             glbl_RoleCat: userFilters.glbl_RoleCat || null,
             topGroupId: userFilters.topGroupId || null,
             featuredCompanies: userFilters.featuredCompanies || null,
-            freshness: userFilters.freshness || null
+            freshness: userFilters.freshness || null,
+            finalUrl: userFilters.finalUrl || null  // Include saved search URL
         };
 
         return filters;
@@ -160,20 +162,15 @@ async function fetchUserFiltersFromDB(userId) {
     const keyword = credentials.searchKeywords;
     console.log(`🔎 Search keyword: "${keyword}"`);
 
-    // Browser configuration with platform-specific settings
-    const isLinux = process.platform === 'linux';
+    // Browser configuration
     const browserConfig = {
         headless: true,
         defaultViewport: null,
         args: ["--start-maximized", "--no-sandbox", "--disable-setuid-sandbox"]
     };
 
-    // Only set executablePath on Linux, let macOS/Windows use bundled Chromium
-    if (isLinux && fs.existsSync('/usr/bin/google-chrome-stable')) {
-        browserConfig.executablePath = '/usr/bin/google-chrome-stable';
-    }
-
-    const browser = await puppeteer.launch(browserConfig);
+    // Use helper to launch browser with automatic Chrome detection
+    const browser = await launchBrowser(browserConfig);
 
     const page = await browser.newPage();
 
@@ -194,68 +191,85 @@ async function fetchUserFiltersFromDB(userId) {
         await page.click("button[type='submit']");
         await delay(7000);
 
-        // 2️⃣ Go to home
-        console.log("➡ Redirecting to Naukri home...");
-        const homeSuccess = await safeGoto(page, "https://www.naukri.com/");
-        if (!homeSuccess) {
-            console.log("❌ Unable to load Naukri home page. Please try again later.");
-            await browser.close();
-            process.exit(1);
-        }
-        await delay(3000);
-    } catch (error) {
-        console.log("❌ An error occurred during login. Please check your credentials and try again.");
-        await browser.close();
-        process.exit(1);
-    }
+        // 2️⃣ Check if user has saved search URL
+        if (userFilters && userFilters.finalUrl && userFilters.finalUrl.trim() !== '') {
+            console.log("✅ Using saved search URL from 'ENTER YOUR SEARCH URL' field...");
+            console.log(`🔗 Navigating to: ${userFilters.finalUrl}`);
 
-    // 3️⃣ Type Keyword
-    try {
-        console.log("⌨️ Typing keyword...");
-        await page.waitForSelector("input[placeholder='Enter keyword / designation / companies']", { timeout: 10000 });
-        const keywordInput = await page.$("input[placeholder='Enter keyword / designation / companies']");
-        await keywordInput.click({ clickCount: 3 });
-        await keywordInput.type(keyword, { delay: 80 });
-        await delay(1500);
-
-        // --- Select experience ---
-        console.log("📈 Selecting experience...");
-        const experienceValue = credentials.yearsOfExperience + " years"; // Dynamic value from database
-
-        await page.waitForSelector("#experienceDD", { timeout: 8000 });
-        await page.click("#experienceDD"); // open dropdown
-        await delay(500);
-
-        // Wait for dropdown options container
-        await page.waitForSelector('.dropDownPrimaryContainer .dropdownPrimary div', { timeout: 5000 });
-
-        const selected = await page.evaluate((value) => {
-            const options = Array.from(document.querySelectorAll('.dropDownPrimaryContainer .dropdownPrimary div'));
-            const option = options.find(opt => opt.innerText.trim().toLowerCase() === value.toLowerCase());
-            if (option) {
-                option.click();
-                return true;
+            const urlSuccess = await safeGoto(page, userFilters.finalUrl);
+            if (!urlSuccess) {
+                console.log("❌ Unable to load search URL. Please check the URL and try again.");
+                await browser.close();
+                process.exit(1);
             }
-            return false;
-        }, experienceValue);
+            await delay(5000);
+            console.log("✅ Search page loaded successfully from your saved URL!");
+            console.log("⏭️  Skipping manual keyword/experience selection (URL already contains filters)");
 
-        if (selected) {
-            console.log(`✅ Experience selected: ${experienceValue}`);
+            // Skip manual keyword/experience selection - URL already has everything
+            // Continue to filter application...
+
         } else {
-            console.warn(`⚠️ Experience value not found: ${experienceValue}`);
+            // Fallback: Manual search if no saved URL
+            console.log("ℹ️ No saved search URL found in database.");
+            console.log("ℹ️ Using manual keyword search fallback...");
+
+            // Go to home
+            console.log("➡ Redirecting to Naukri home...");
+            const homeSuccess = await safeGoto(page, "https://www.naukri.com/");
+            if (!homeSuccess) {
+                console.log("❌ Unable to load Naukri home page. Please try again later.");
+                await browser.close();
+                process.exit(1);
+            }
+            await delay(3000);
+
+            // Type Keyword
+            console.log("⌨️ Typing keyword...");
+            await page.waitForSelector("input[placeholder='Enter keyword / designation / companies']", { timeout: 10000 });
+            const keywordInput = await page.$("input[placeholder='Enter keyword / designation / companies']");
+            await keywordInput.click({ clickCount: 3 });
+            await keywordInput.type(keyword, { delay: 80 });
+            await delay(1500);
+
+            // Select experience
+            console.log("📈 Selecting experience...");
+            const experienceValue = credentials.yearsOfExperience + " years";
+
+            await page.waitForSelector("#experienceDD", { timeout: 8000 });
+            await page.click("#experienceDD");
+            await delay(500);
+
+            await page.waitForSelector('.dropDownPrimaryContainer .dropdownPrimary div', { timeout: 5000 });
+
+            const selected = await page.evaluate((value) => {
+                const options = Array.from(document.querySelectorAll('.dropDownPrimaryContainer .dropdownPrimary div'));
+                const option = options.find(opt => opt.innerText.trim().toLowerCase() === value.toLowerCase());
+                if (option) {
+                    option.click();
+                    return true;
+                }
+                return false;
+            }, experienceValue);
+
+            if (selected) {
+                console.log(`✅ Experience selected: ${experienceValue}`);
+            } else {
+                console.warn(`⚠️ Experience value not found: ${experienceValue}`);
+            }
+
+            await delay(1000);
+
+            // Click Search
+            console.log("🔍 Clicking search...");
+            await page.evaluate(() => {
+                const searchBtn = document.querySelector("button.nI-gNb-sb__icon-wrapper span:nth-child(2)");
+                if (searchBtn) searchBtn.click();
+            });
+            await delay(5000);
         }
 
-        await delay(1000);
-
-        // 4️⃣ Click Search
-        console.log("🔍 Clicking search...");
-        await page.evaluate(() => {
-            const searchBtn = document.querySelector("button.nI-gNb-sb__icon-wrapper span:nth-child(2)");
-            if (searchBtn) searchBtn.click();
-        });
-        await delay(5000);
-
-        // Wait for the filter sidebar to load
+        // Wait for the filter sidebar to load (for both URL-based and manual search)
         console.log("⏳ Waiting for filters sidebar to load...");
         try {
             console.log("⏳ Waiting for Freshness filter to load...");

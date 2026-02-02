@@ -6,6 +6,7 @@
 
 import puppeteer from 'puppeteer';
 import fs from 'fs';
+import { launchBrowser } from '../utils/puppeteerHelper.js';
 
 /**
  * Sleep helper function
@@ -46,8 +47,7 @@ export async function updateResumeHeadline(email, password) {
 
         addLog(`Launching browser for user: ${email}`);
 
-        // Browser configuration with platform-specific settings
-        const isLinux = process.platform === 'linux';
+        // Browser configuration
         const browserConfig = {
             headless: true,
             defaultViewport: null,
@@ -65,12 +65,8 @@ export async function updateResumeHeadline(email, password) {
             ignoreHTTPSErrors: true
         };
 
-        // Only set executablePath on Linux, let macOS/Windows use bundled Chromium
-        if (isLinux && fs.existsSync('/usr/bin/google-chrome-stable')) {
-            browserConfig.executablePath = '/usr/bin/google-chrome-stable';
-        }
-
-        browser = await puppeteer.launch(browserConfig);
+        // Launch browser with automatic Chrome detection
+        browser = await launchBrowser(browserConfig);
 
         const page = await browser.newPage();
 

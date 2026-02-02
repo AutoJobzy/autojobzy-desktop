@@ -7,6 +7,7 @@
 
 import puppeteer from 'puppeteer';
 import fs from 'fs';
+import { launchBrowser } from './utils/puppeteerHelper.js';
 
 /**
  * Verify Naukri credentials by attempting login
@@ -28,26 +29,24 @@ export async function verifyNaukriCredentials(username, password) {
             };
         }
 
-        // Browser configuration with platform-specific settings
-        const isLinux = process.platform === 'linux';
+        // Browser configuration
         const browserConfig = {
-            headless: true,
+            headless: 'new', // Use new headless mode
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process'
-            ]
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-blink-features=AutomationControlled',
+                '--disable-gpu',
+                '--window-size=1920,1080'
+            ],
+            defaultViewport: null
         };
 
-        // Only set executablePath on Linux, let macOS/Windows use bundled Chromium
-        if (isLinux && fs.existsSync('/usr/bin/google-chrome-stable')) {
-            browserConfig.executablePath = '/usr/bin/google-chrome-stable';
-        }
-
-        // Launch browser in headless mode for security
-        browser = await puppeteer.launch(browserConfig);
+        // Launch browser with automatic Chrome detection
+        browser = await launchBrowser(browserConfig);
 
         const page = await browser.newPage();
 
@@ -61,14 +60,16 @@ export async function verifyNaukriCredentials(username, password) {
 
         console.log('[VERIFY] Navigating to Naukri login page...');
 
-        // Navigate to Naukri login page
+        // Navigate to Naukri login page with increased timeout
         await page.goto('https://www.naukri.com/nlogin/login', {
-            waitUntil: 'networkidle2',
-            timeout: 30000
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
         });
 
-        // Wait for login form to be visible
-        await page.waitForSelector('#usernameField', { timeout: 10000 });
+        console.log('[VERIFY] Waiting for login form...');
+
+        // Wait for login form to be visible with increased timeout
+        await page.waitForSelector('#usernameField', { timeout: 20000 });
 
         console.log('[VERIFY] Entering credentials... (credentials are NOT logged)');
 
@@ -83,16 +84,16 @@ export async function verifyNaukriCredentials(username, password) {
         // Click login button
         await page.click('button[type="submit"]');
 
-        // Wait for navigation or error message
+        // Wait for navigation or error message with increased timeout
         await Promise.race([
-            page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }),
-            page.waitForSelector('.error', { timeout: 15000 })
+            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }),
+            page.waitForSelector('.error', { timeout: 30000 })
         ]).catch(() => {
             // Timeout is okay, we'll check the page state
         });
 
-        // Wait a bit for the page to stabilize
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Wait for the page to stabilize
+        await new Promise(resolve => setTimeout(resolve, 5000));
 
         // Check if we're still on the login page or if there's an error
         const currentUrl = page.url();

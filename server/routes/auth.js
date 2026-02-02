@@ -477,14 +477,39 @@ router.post('/verify-naukri-credentials', authenticateToken, async (req, res) =>
         // Call verification function (credentials are NOT logged)
         const result = await verifyNaukriCredentials(naukriUsername, naukriPassword);
 
-        // Update user's job settings with verification status if successful
+        // Update user's job settings with verification status and credentials if successful
         if (result.success) {
-            const jobSettings = await JobSettings.findOne({ where: { userId: req.userId } });
+            let jobSettings = await JobSettings.findOne({ where: { userId: req.userId } });
+
             if (jobSettings) {
+                // Update existing settings
+                console.log(`[API] 📝 Saving credentials - Email: ${naukriUsername}, Password length: ${naukriPassword.length}`);
+
+                jobSettings.naukriEmail = naukriUsername;
+                jobSettings.naukriPassword = naukriPassword;
                 jobSettings.credentialsVerified = true;
                 jobSettings.lastVerified = new Date();
+
                 await jobSettings.save();
+
+                // Verify data was saved by re-fetching
+                const savedSettings = await JobSettings.findOne({ where: { userId: req.userId } });
+                console.log(`[API] ✅ Saved! Email in DB: ${savedSettings.naukriEmail}, Password in DB: ${savedSettings.naukriPassword ? '***' + savedSettings.naukriPassword.slice(-3) : 'NULL'}`);
                 console.log(`[API] ✓ Credentials verified and saved for user ${req.userId}`);
+            } else {
+                // Create new job settings if doesn't exist
+                console.log(`[API] 📝 Creating new job settings with credentials`);
+
+                jobSettings = await JobSettings.create({
+                    userId: req.userId,
+                    naukriEmail: naukriUsername,
+                    naukriPassword: naukriPassword,
+                    credentialsVerified: true,
+                    lastVerified: new Date()
+                });
+
+                console.log(`[API] ✅ Created! Email: ${jobSettings.naukriEmail}, Has password: ${!!jobSettings.naukriPassword}`);
+                console.log(`[API] ✓ New job settings created with verified credentials for user ${req.userId}`);
             }
         }
 

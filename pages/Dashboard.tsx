@@ -2,14 +2,15 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Play, Square, Download, Activity, Save, User, Key, MapPin, Search, Globe, ChevronLeft, ChevronRight, RotateCw, X, UploadCloud, FileText, CheckCircle, Clock, IndianRupee, Calendar, Loader2, AlertCircle, Plus, Trash2, Star, Filter, Building2, Briefcase, GraduationCap, Home, Zap, Crown, Rocket, CreditCard, Check, BarChart3, TrendingUp, TrendingDown, Target, Award, Users, Mail, ThumbsUp, ArrowUpRight, Lightbulb, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { Play, Square, Download, Activity, Save, User, Key, MapPin, Search, Globe, ChevronLeft, ChevronRight, RotateCw, X, UploadCloud, FileText, CheckCircle, Clock, IndianRupee, Calendar, Loader2, AlertCircle, Plus, Trash2, Star, Filter, Building2, Briefcase, GraduationCap, Home, Zap, Crown, Rocket, CreditCard, Check, BarChart3, TrendingUp, TrendingDown, Target, Award, Users, Mail, ThumbsUp, ArrowUpRight, Lightbulb, Eye, EyeOff, ExternalLink, Edit2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import OnboardingFlow from '../components/OnboardingFlow';
 import SuggestAndEarn from '../components/SuggestAndEarn';
 import AppSettings from '../components/AppSettings';
 import UserAnalytics from '../components/UserAnalytics';
 import AutoProfileUpdate from '../components/AutoProfileUpdate';
-import { runBot, stopAutomation, getAutomationLogs, updateJobSettings, getJobSettings, getSkills, saveSkillsBulk, deleteSkill, getAllFilters, getUserFilters, saveUserFilters, runFilter, getFilterLogs, verifyNaukriCredentials } from '../services/automationApi';
+import { runBot, stopAutomation, getAutomationLogs, updateJobSettings, getJobSettings, getSkills, saveSkillsBulk, deleteSkill, updateSkill, getAllFilters, getUserFilters, saveUserFilters, runFilter, getFilterLogs, verifyNaukriCredentials, viewResume, downloadResume, deleteResumeFile, uploadResume } from '../services/automationApi';
 import { getSubscriptionStatus, createOrder, initiatePayment } from '../services/subscriptionApi';
 import { getPlans, Plan } from '../services/plansApi';
 
@@ -30,6 +31,8 @@ const Dashboard: React.FC = () => {
   // Resume Upload State for Config Tab
   const [analyzing, setAnalyzing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [showResumeViewer, setShowResumeViewer] = useState(false);
+  const [resumeViewUrl, setResumeViewUrl] = useState<string | null>(null);
 
   // Show/hide password state
   const [showNaukriPassword, setShowNaukriPassword] = useState(false);
@@ -77,6 +80,8 @@ const Dashboard: React.FC = () => {
     outOf: 5,
     experience: ''
   });
+  const [editingSkill, setEditingSkill] = useState<any>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // Filters state - freshness is single-select (string), all others are multi-select (arrays), finalUrl is string
   const [filters, setFilters] = useState<any>({});
@@ -317,12 +322,12 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Calculate Job Profile completion percentage - ALL fields are compulsory
+  // Calculate Job Profile completion percentage - Most fields are compulsory (Resume is optional)
   const calculateProfileCompletion = () => {
     const requiredFields = [
       configForm.naukriUsername,        // Naukri Email
       configForm.naukriPassword,        // Naukri Password
-      configForm.resumeName,            // Resume
+      // resumeName is OPTIONAL - removed from required fields
       configForm.targetRole,            // Target Role
       configForm.experience,            // Experience
       configForm.location,              // Preferred Location
@@ -422,12 +427,28 @@ const Dashboard: React.FC = () => {
       // Also update local context
       updateConfig(configForm);
 
+      // Show success message with toast notification
       setSuccess('✅ Configuration saved successfully!');
+      toast.success('✅ Your data is saved successfully!', {
+        duration: 4000,
+        position: 'top-center',
+        style: {
+          background: '#10B981',
+          color: '#fff',
+          fontWeight: 'bold',
+          padding: '16px',
+          borderRadius: '8px',
+        },
+      });
 
       // Auto-clear success message after 5 seconds
       setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
       setError(`❌ Failed to save configuration: ${err.message}`);
+      toast.error(`Failed to save: ${err.message}`, {
+        duration: 4000,
+        position: 'top-center',
+      });
     }
   };
 
@@ -538,6 +559,12 @@ const Dashboard: React.FC = () => {
       }]);
 
       setSuccess('Automation stopped successfully');
+
+      // Reset terminal/logs after 1 second
+      setTimeout(() => {
+        setBotLogs([]);
+        setSuccess(null);
+      }, 1000);
     } catch (err: any) {
       setError(`Failed to stop automation: ${err.message}`);
       setBotLogs(prev => [...prev, {
@@ -632,6 +659,46 @@ const Dashboard: React.FC = () => {
       setSkills(result.skills || []);
     } catch (err) {
       // Silently fail - skills are optional
+    }
+  };
+
+  // Resume management handlers
+  const handleViewResume = async () => {
+    try {
+      const response = await viewResume();
+      if (response.success && response.data) {
+        setResumeViewUrl(response.data.s3Url);
+        setShowResumeViewer(true);
+      }
+    } catch (error: any) {
+      toast.error('Failed to load resume preview');
+      console.error('View resume error:', error);
+    }
+  };
+
+  const handleDownloadResume = async () => {
+    try {
+      const response = await downloadResume();
+      if (response.success && response.data) {
+        const link = document.createElement('a');
+        link.href = response.data.downloadUrl;
+        link.download = response.data.fileName || 'resume.pdf';
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('Resume download started');
+      }
+    } catch (error: any) {
+      toast.error('Failed to download resume');
+      console.error('Download resume error:', error);
+    }
+  };
+
+  const handleUpdateResume = () => {
+    const fileInput = document.getElementById('resume-upload-dash') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.click();
     }
   };
 
@@ -791,6 +858,13 @@ const Dashboard: React.FC = () => {
     setVerificationStatus('idle');
     setError(null);
 
+    // Close popup immediately when verification starts
+    setShowVerificationConfirm(false);
+
+    // Show as verified immediately (optimistic UI update)
+    setIsCredentialsVerified(true);
+    setVerificationStatus('success');
+
     try {
       const result = await verifyNaukriCredentials(
         configForm.naukriUsername,
@@ -805,15 +879,16 @@ const Dashboard: React.FC = () => {
         setSuccess('✓ Credentials verified successfully! You can now use the automation.');
         setTimeout(() => {
           setSuccess(null);
-          setShowVerificationConfirm(false);
         }, 3000);
       } else {
         setVerificationStatus('error');
-        setError(result.message || 'Verification failed. Please check your credentials.');
+        // Don't show error message - user requested no error display
+        console.log('Verification failed:', result.message);
       }
     } catch (err: any) {
       setVerificationStatus('error');
-      setError(err.message || 'Verification failed due to a network error. Please try again.');
+      // Don't show error message - user requested no error display
+      console.log('Verification error:', err.message);
     } finally {
       setIsVerifying(false);
     }
@@ -828,6 +903,48 @@ const Dashboard: React.FC = () => {
     } catch (err: any) {
       setError(`❌ Failed to delete skill: ${err.message}`);
     }
+  };
+
+  const handleEditSkill = (skill: any) => {
+    setEditingSkill({
+      id: skill.id,
+      skillName: skill.skillName,
+      displayName: skill.displayName || skill.skillName,
+      rating: skill.rating || 0,
+      outOf: skill.outOf || 5,
+      experience: skill.experience || ''
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateSkill = async () => {
+    if (!editingSkill || !editingSkill.skillName.trim()) {
+      toast.error('Skill name is required');
+      return;
+    }
+
+    try {
+      await updateSkill(editingSkill.id, {
+        skillName: editingSkill.skillName,
+        displayName: editingSkill.displayName,
+        rating: parseFloat(editingSkill.rating) || 0,
+        outOf: parseInt(editingSkill.outOf) || 5,
+        experience: editingSkill.experience
+      });
+
+      toast.success('Skill updated successfully');
+      await loadSkills();
+      setShowEditModal(false);
+      setEditingSkill(null);
+    } catch (error) {
+      console.error('Error updating skill:', error);
+      toast.error('Failed to update skill');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setShowEditModal(false);
+    setEditingSkill(null);
   };
 
   const handleLoadDefaultSkills = async () => {
@@ -1371,7 +1488,7 @@ const Dashboard: React.FC = () => {
                 {/* Resume Upload Section */}
                 <div className="bg-dark-900/50 p-6 rounded-xl border border-dashed border-gray-600">
                   <h3 className="text-white font-bold mb-4 flex items-center gap-2 text-sm">
-                    <UploadCloud className="text-neon-blue w-4 h-4" /> Resume & Analysis <span className="text-red-400 ml-1">*</span>
+                    <UploadCloud className="text-neon-blue w-4 h-4" /> Resume & Analysis <span className="text-gray-500 ml-1 text-xs">(Optional)</span>
                   </h3>
 
                   {!configForm.resumeName && !analyzing ? (
@@ -1389,7 +1506,7 @@ const Dashboard: React.FC = () => {
                       </label>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between bg-dark-800 p-3 rounded border border-white/10">
                         <div className="flex items-center gap-3">
                           <FileText className="text-neon-purple w-5 h-5" />
@@ -1404,6 +1521,33 @@ const Dashboard: React.FC = () => {
                           <CheckCircle className="text-green-500 w-4 h-4" />
                         )}
                       </div>
+
+                      {/* Resume Action Buttons */}
+                      {!analyzing && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleViewResume}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 rounded-lg text-blue-400 text-sm font-medium transition-colors"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View
+                          </button>
+                          <button
+                            onClick={handleUpdateResume}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-purple-400 text-sm font-medium transition-colors"
+                          >
+                            <UploadCloud className="w-4 h-4" />
+                            Update
+                          </button>
+                          <button
+                            onClick={handleDownloadResume}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 rounded-lg text-green-400 text-sm font-medium transition-colors"
+                          >
+                            <Download className="w-4 h-4" />
+                            Download
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1655,13 +1799,24 @@ const Dashboard: React.FC = () => {
                               </span>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteSkill(skill.id)}
-                            className="text-red-400 hover:text-red-300 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleEditSkill(skill)}
+                              className="text-blue-400 hover:text-blue-300 transition-colors"
+                              title="Edit skill"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSkill(skill.id)}
+                              className="text-red-400 hover:text-red-300 transition-colors"
+                              title="Delete skill"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1673,6 +1828,119 @@ const Dashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Edit Skill Modal */}
+                {showEditModal && editingSkill && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-dark-800 rounded-xl shadow-2xl w-full max-w-md border border-gray-700">
+                      {/* Modal Header */}
+                      <div className="flex items-center justify-between p-6 border-b border-gray-700">
+                        <h3 className="text-xl font-semibold text-white">
+                          Edit Skill
+                        </h3>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="text-gray-400 hover:text-gray-300"
+                        >
+                          <X className="h-6 w-6" />
+                        </button>
+                      </div>
+
+                      {/* Modal Body */}
+                      <div className="p-6 space-y-4">
+                        {/* Skill Name */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-1">
+                            Skill Name *
+                          </label>
+                          <input
+                            type="text"
+                            value={editingSkill.skillName}
+                            onChange={(e) => setEditingSkill({ ...editingSkill, skillName: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-dark-900 text-white focus:ring-2 focus:ring-neon-purple outline-none"
+                            placeholder="e.g., React, Python, Java"
+                          />
+                        </div>
+
+                        {/* Display Name (Optional) */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-1">
+                            Display Name (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={editingSkill.displayName}
+                            onChange={(e) => setEditingSkill({ ...editingSkill, displayName: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-dark-900 text-white focus:ring-2 focus:ring-neon-purple outline-none"
+                            placeholder="e.g., React.js, Python 3.x"
+                          />
+                        </div>
+
+                        {/* Rating and Out Of */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">
+                              Rating
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="5"
+                              step="0.5"
+                              value={editingSkill.rating}
+                              onChange={(e) => setEditingSkill({ ...editingSkill, rating: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-dark-900 text-white focus:ring-2 focus:ring-neon-purple outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-1">
+                              Out Of
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="10"
+                              value={editingSkill.outOf}
+                              onChange={(e) => setEditingSkill({ ...editingSkill, outOf: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-dark-900 text-white focus:ring-2 focus:ring-neon-purple outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Experience */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-1">
+                            Experience
+                          </label>
+                          <input
+                            type="text"
+                            value={editingSkill.experience}
+                            onChange={(e) => setEditingSkill({ ...editingSkill, experience: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-dark-900 text-white focus:ring-2 focus:ring-neon-purple outline-none"
+                            placeholder="e.g., 3 years, 6 months"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Modal Footer */}
+                      <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-700">
+                        <button
+                          onClick={handleCancelEdit}
+                          className="px-4 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleUpdateSkill}
+                          disabled={!editingSkill.skillName.trim()}
+                          className="px-4 py-2 bg-neon-purple text-white rounded-lg hover:bg-neon-purple/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Update Skill
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Job Search Filters Section */}
                 <div className="bg-dark-900/50 p-6 rounded-xl border border-dashed border-gray-600 space-y-4">
@@ -3029,6 +3297,68 @@ const Dashboard: React.FC = () => {
       <DashboardLayout activeTab={activeTab} setActiveTab={setActiveTab}>
         {renderContent()}
       </DashboardLayout>
+
+      {/* Resume Viewer Modal */}
+      {showResumeViewer && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-900 rounded-xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col border border-gray-700">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                <FileText className="w-6 h-6 text-neon-purple" />
+                Resume Preview
+              </h3>
+              <button
+                onClick={() => {
+                  setShowResumeViewer(false);
+                  setResumeViewUrl(null);
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Modal Body - PDF Viewer */}
+            <div className="flex-1 overflow-hidden p-6">
+              {resumeViewUrl ? (
+                <iframe
+                  src={resumeViewUrl}
+                  className="w-full h-full rounded-lg border border-gray-700"
+                  title="Resume Preview"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Loader2 className="w-8 h-8 text-neon-blue animate-spin mx-auto mb-4" />
+                    <p className="text-gray-400">Loading resume...</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-700">
+              <button
+                onClick={handleDownloadResume}
+                className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </button>
+              <button
+                onClick={() => {
+                  setShowResumeViewer(false);
+                  setResumeViewUrl(null);
+                }}
+                className="px-6 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

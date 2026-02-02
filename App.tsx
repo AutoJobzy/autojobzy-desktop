@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import FirstTimeSetup from './components/FirstTimeSetup';
 import Auth from './pages/Auth';
 import Plans from './pages/Plans';
 import ProfileSetup from './pages/ProfileSetup';
@@ -59,6 +60,17 @@ const AppContent: React.FC = () => {
   const { user, logout } = useApp();
   const location = useLocation();
   const previousPath = useRef<string | null>(null);
+  const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
+  const [setupCheckComplete, setSetupCheckComplete] = useState(false);
+
+  // Check if this is the first time the app is running
+  useEffect(() => {
+    const isInstalled = localStorage.getItem('autojobzy_installed');
+    if (!isInstalled) {
+      setShowFirstTimeSetup(true);
+    }
+    setSetupCheckComplete(true);
+  }, []);
 
   // Define protected and public routes
   const protectedRoutes = ['/dashboard', '/plans', '/setup', '/history', '/institute-admin'];
@@ -85,6 +97,16 @@ const AppContent: React.FC = () => {
 
   // Check if current route is admin, superadmin, or institute-admin route
   const isAdminRoute = location.pathname.startsWith('/admin') || location.pathname.startsWith('/superadmin') || location.pathname.startsWith('/institute-admin');
+
+  // Show first-time setup if not installed
+  if (setupCheckComplete && showFirstTimeSetup) {
+    return <FirstTimeSetup onComplete={() => setShowFirstTimeSetup(false)} />;
+  }
+
+  // Don't render app until setup check is complete
+  if (!setupCheckComplete) {
+    return null;
+  }
 
   return (
     <div className="bg-gray-50 dark:bg-dark-900 min-h-screen text-gray-900 dark:text-slate-200 font-sans selection:bg-neon-blue selection:text-black flex flex-col transition-colors duration-200">

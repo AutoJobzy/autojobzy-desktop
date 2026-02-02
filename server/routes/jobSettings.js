@@ -10,6 +10,7 @@ import path from 'path';
 import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import JobSettings from '../models/JobSettings.js';
 import Skill from '../models/Skill.js';
+import UserFilter from '../models/UserFilter.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -142,6 +143,7 @@ router.get('/', authenticateToken, async (req, res) => {
                 const created = await JobSettings.create({ userId: req.userId });
                 const response = created.toJSON();
                 response.name = response.fullName || 'User';
+                response.searchUrl = '';  // No search URL yet for new users
                 return res.json(response);
             } catch (createError) {
                 // If foreign key error, user doesn't exist - they need to re-login
@@ -156,9 +158,22 @@ router.get('/', authenticateToken, async (req, res) => {
             }
         }
 
+        // Debug: Log Naukri credentials status
+        console.log(`[GET] Naukri Email: ${jobSettings.naukriEmail || 'NULL'}, Has Password: ${!!jobSettings.naukriPassword}, Verified: ${jobSettings.credentialsVerified}`);
+
+        // Fetch saved search URL from user_filters table
+        const userFilters = await UserFilter.findOne({
+            where: { userId: req.userId },
+            attributes: ['finalUrl']
+        });
+
         // Return settings with normalized field names for AI answers
         const response = jobSettings.toJSON();
         response.name = response.fullName || 'User';  // Add name field for AI
+        response.searchUrl = userFilters?.finalUrl || '';  // Add saved search URL
+
+        console.log(`[GET] Saved search URL: ${response.searchUrl ? response.searchUrl.substring(0, 80) + '...' : 'NOT SET'}`);
+
         res.json(response);
     } catch (error) {
         console.error('Fetch job settings error:', error.message);

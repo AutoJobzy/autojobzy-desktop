@@ -138,7 +138,7 @@ export function ExampleUsage() {
 export function getAPIBaseURL(): string {
   // If in Electron, always use localhost
   if (window.electronAPI) {
-    return 'http://localhost:5000';
+    return 'https://api.autojobzy.com';
   }
 
   // Otherwise, use environment variable or default

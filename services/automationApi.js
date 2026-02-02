@@ -296,6 +296,27 @@ export async function getResumeText() {
 }
 
 /**
+ * View resume - Get resume metadata and presigned URL
+ */
+export async function viewResume() {
+    return apiCall('/resume/view', 'GET');
+}
+
+/**
+ * Download resume - Get download URL for resume
+ */
+export async function downloadResume() {
+    return apiCall('/resume/download', 'GET');
+}
+
+/**
+ * Delete resume from S3 and database
+ */
+export async function deleteResumeFile() {
+    return apiCall('/resume/delete', 'DELETE');
+}
+
+/**
  * ======================== JOB SETTINGS ENDPOINTS ========================
  */
 
@@ -354,6 +375,15 @@ export async function saveSkillsBulk(skills) {
  */
 export async function deleteSkill(skillId) {
     return apiCall(`/skills/${skillId}`, 'DELETE');
+}
+
+/**
+ * Update an existing skill
+ * @param {string} skillId - Skill ID to update
+ * @param {Object} skillData - Updated skill data
+ */
+export async function updateSkill(skillId, skillData) {
+    return apiCall(`/skills/${skillId}`, 'PUT', skillData);
 }
 
 /**

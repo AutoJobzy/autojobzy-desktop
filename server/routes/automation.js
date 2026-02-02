@@ -257,14 +257,46 @@ router.post('/start', authenticateToken, async (req, res) => {
  */
 router.post('/stop', authenticateToken, async (req, res) => {
     try {
-        if (!isAutomationRunning()) {
+        let stoppedSomething = false;
+
+        // Stop main automation (autoApply)
+        if (isAutomationRunning()) {
+            await stopAutomation();
+            stoppedSomething = true;
+            console.log('✅ Main automation stopped');
+        }
+
+        // Stop filter automation process if running
+        if (filterProcess) {
+            try {
+                filterProcess.kill('SIGTERM');
+                filterProcess = null;
+                filterLogs.push({
+                    timestamp: new Date().toLocaleTimeString(),
+                    message: '⚠️ Filter automation stopped',
+                    type: 'warning'
+                });
+                stoppedSomething = true;
+                console.log('✅ Filter automation process killed');
+            } catch (err) {
+                console.error('Error killing filter process:', err);
+                // Force kill
+                try {
+                    filterProcess.kill('SIGKILL');
+                    filterProcess = null;
+                } catch (e) {
+                    filterProcess = null;
+                }
+            }
+        }
+
+        if (!stoppedSomething) {
             return res.status(400).json({ error: 'No automation running' });
         }
 
-        await stopAutomation();
         res.json({
             success: true,
-            message: 'Automation stopped',
+            message: 'All automation processes stopped',
             logs: getLogs(),
         });
     } catch (error) {

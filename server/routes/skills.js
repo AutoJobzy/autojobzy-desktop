@@ -132,6 +132,46 @@ router.post('/bulk', authenticateToken, async (req, res) => {
 });
 
 /**
+ * PUT /api/skills/:skillId
+ * Update an existing skill
+ */
+router.put('/:skillId', authenticateToken, async (req, res) => {
+    try {
+        const { skillId } = req.params;
+        const { skillName, displayName, rating, outOf, experience } = req.body;
+
+        // Find skill and verify ownership
+        const skill = await Skill.findOne({
+            where: {
+                id: skillId,
+                userId: req.userId,
+            },
+        });
+
+        if (!skill) {
+            return res.status(404).json({ error: 'Skill not found' });
+        }
+
+        // Update skill
+        await skill.update({
+            skillName: skillName ? skillName.toLowerCase() : skill.skillName,
+            displayName: displayName || skill.displayName,
+            rating: rating !== undefined ? parseFloat(rating) : skill.rating,
+            outOf: outOf !== undefined ? parseInt(outOf) : skill.outOf,
+            experience: experience !== undefined ? experience : skill.experience,
+        });
+
+        res.json({
+            message: 'Skill updated successfully',
+            skill,
+        });
+    } catch (error) {
+        console.error('Update skill error:', error);
+        res.status(500).json({ error: 'Failed to update skill' });
+    }
+});
+
+/**
  * DELETE /api/skills/:skillId
  * Delete a specific skill
  */

@@ -22,6 +22,7 @@ import {
 import sequelize from './db/config.js';
 import XLSX from 'xlsx';
 import JobApplicationResult from './models/JobApplicationResult.js';
+import { launchBrowser } from './utils/puppeteerHelper.js';
 
 // State management for automation
 let isRunning = false;
@@ -991,9 +992,10 @@ export async function startAutomation(options = {}) {
             finalJobUrl = await fetchFinalUrlFromDB(userId);
 
             if (finalJobUrl) {
-                addLog(`Using DB URL: ${finalJobUrl}`, "success");
+                addLog(`✅ Using your saved search URL from 'ENTER YOUR SEARCH URL' field`, "success");
+                addLog(`🔗 URL: ${finalJobUrl.substring(0, 80)}...`, "info");
             } else {
-                addLog(`DB URL missing. Using default.`, "warning");
+                addLog(`⚠️ No search URL found in database. Using default fallback URL.`, "warning");
                 finalJobUrl = "https://www.naukri.com/java-full-stack-developer-jobs?k=java+full+stack+developer";
             }
         }
@@ -1003,27 +1005,30 @@ export async function startAutomation(options = {}) {
         async function fetchFinalUrlFromDB(userId) {
             try {
                 const [rows] = await sequelize.query(
-                    `SELECT final_url 
-            FROM user_filters 
+                    `SELECT final_url
+            FROM user_filters
             WHERE user_id = :userId
             LIMIT 1`,
                     { replacements: { userId } }
                 );
 
                 if (!rows || rows.length === 0) {
-                    console.log("No row found for userId:", userId);
+                    console.log("❌ No saved search URL found in database for userId:", userId);
                     return null;
                 }
 
-                const url = rows.final_url || rows[0].final_url;
+                const url = rows[0]?.final_url;
 
                 if (!url || url.trim() === "") {
-                    console.log("final_url is empty for user:", userId);
+                    console.log("⚠️ Search URL is empty in database for user:", userId);
                     return null;
                 }
 
+                console.log("✅ Found saved search URL from 'ENTER YOUR SEARCH URL' field");
+                console.log("🔗 URL:", url.substring(0, 100) + (url.length > 100 ? '...' : ''));
                 return url.trim();
             } catch (err) {
+                console.error('❌ Database error fetching URL:', err.message);
                 addLog('Unable to retrieve saved job URL from database', 'warning');
                 return null;
             }
@@ -1038,15 +1043,12 @@ export async function startAutomation(options = {}) {
         // ========== STEP 2: LAUNCH BROWSER ==========
         addLog('Launching browser...', 'info');
 
-        // Production-ready configuration for Linux EC2
-        const isLinux = process.platform === 'linux';
-
-        // Determine executable path based on platform
+        // Production-ready configuration
         const browserConfig = {
             headless: true,
             defaultViewport: null,
 
-            // Linux EC2-specific args
+            // Browser args for automation
             args: [
                 '--no-sandbox',                    // CRITICAL: Required for Docker/EC2
                 '--disable-setuid-sandbox',        // CRITICAL: Required for Docker/EC2
@@ -1069,12 +1071,8 @@ export async function startAutomation(options = {}) {
             ignoreHTTPSErrors: true,
         };
 
-        // Only set executablePath on Linux, let macOS/Windows use bundled Chromium
-        if (isLinux && fs.existsSync('/usr/bin/google-chrome-stable')) {
-            browserConfig.executablePath = '/usr/bin/google-chrome-stable';
-        }
-
-        browser = await puppeteer.launch(browserConfig);
+        // Use helper to launch browser with automatic Chrome detection
+        browser = await launchBrowser(browserConfig);
 
         const page = await browser.newPage();
 
@@ -1569,33 +1567,73 @@ export async function stopAutomation() {
     }
 
     isRunning = false;
-    addLog('Stopping automation...', 'warning');
+    addLog('⚠️ Stopping automation - killing all processes...', 'warning');
 
     // Force close browser immediately
     if (browser) {
         try {
-            addLog('Closing browser...', 'info');
-            await browser.close();
-            browser = null;
-            addLog('Browser closed successfully', 'success');
-        } catch (err) {
-            addLog(`Error closing browser: ${err.message}`, 'error');
-            // Force kill browser process
+            addLog('🔪 Closing browser and all tabs...', 'info');
+
+            // Close all pages first
             try {
                 const pages = await browser.pages();
                 for (const page of pages) {
-                    await page.close();
+                    try {
+                        await page.close();
+                    } catch (e) {
+                        // Ignore errors on individual page close
+                    }
                 }
-                await browser.close();
-                browser = null;
             } catch (e) {
-                // If all else fails, set browser to null to clear reference
-                browser = null;
+                // Ignore if can't get pages
             }
+
+            // Get browser process PID before closing (if available)
+            let browserPid = null;
+            try {
+                const browserProcess = browser.process();
+                if (browserProcess && browserProcess.pid) {
+                    browserPid = browserProcess.pid;
+                }
+            } catch (e) {
+                // Ignore if process() not available
+            }
+
+            // Close browser gracefully
+            await browser.close();
+
+            // Force kill browser process if we have PID
+            if (browserPid) {
+                try {
+                    process.kill(browserPid, 'SIGTERM');
+                    addLog('🔪 Browser process killed (SIGTERM)', 'info');
+                } catch (e) {
+                    // Process might already be dead, ignore
+                }
+            }
+
+            browser = null;
+            addLog('✅ Browser closed successfully', 'success');
+        } catch (err) {
+            addLog(`⚠️ Error closing browser: ${err.message}`, 'error');
+
+            // Force kill browser process if graceful close failed
+            try {
+                const browserProcess = browser.process();
+                if (browserProcess && browserProcess.pid) {
+                    process.kill(browserProcess.pid, 'SIGKILL');
+                    addLog('🔪 Browser process force killed (SIGKILL)', 'warning');
+                }
+            } catch (e) {
+                // Ignore errors
+            }
+
+            // Clear browser reference
+            browser = null;
         }
     }
 
-    addLog('Automation stopped successfully', 'success');
+    addLog('✅ All automation processes stopped successfully', 'success');
 }
 
 /**

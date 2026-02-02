@@ -137,6 +137,101 @@ router.post('/upload', authenticateToken, upload.single('resume'), async (req, r
 });
 
 /**
+ * GET /api/resume/view
+ * Get resume metadata and presigned URL for viewing
+ * Requires authentication
+ */
+router.get('/view', authenticateToken, async (req, res) => {
+  try {
+    const jobSettings = await JobSettings.findOne({
+      where: { userId: req.userId },
+    });
+
+    if (!jobSettings || !jobSettings.resumeS3Key) {
+      return res.status(404).json({
+        success: false,
+        error: 'No resume found',
+      });
+    }
+
+    // Generate presigned URL for viewing (valid for 1 hour)
+    let viewUrl = jobSettings.resumeS3Url;
+
+    if (isS3Configured() && jobSettings.resumeS3Key) {
+      try {
+        const { getPresignedUrl } = await import('../services/s3Service.js');
+        viewUrl = await getPresignedUrl(jobSettings.resumeS3Key, 3600); // 1 hour
+      } catch (error) {
+        console.warn('⚠️  Failed to generate presigned URL:', error.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        fileName: jobSettings.resumeFileName,
+        s3Url: viewUrl,
+        uploadedAt: jobSettings.updatedAt,
+      },
+    });
+  } catch (error) {
+    console.error('Resume view error:', error);
+
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get resume details',
+    });
+  }
+});
+
+/**
+ * GET /api/resume/download
+ * Generate presigned URL for downloading resume
+ * Requires authentication
+ */
+router.get('/download', authenticateToken, async (req, res) => {
+  try {
+    const jobSettings = await JobSettings.findOne({
+      where: { userId: req.userId },
+    });
+
+    if (!jobSettings || !jobSettings.resumeS3Key) {
+      return res.status(404).json({
+        success: false,
+        error: 'No resume found',
+      });
+    }
+
+    // Generate presigned URL for downloading (valid for 15 minutes)
+    let downloadUrl = jobSettings.resumeS3Url;
+
+    if (isS3Configured() && jobSettings.resumeS3Key) {
+      try {
+        const { getPresignedUrl } = await import('../services/s3Service.js');
+        downloadUrl = await getPresignedUrl(jobSettings.resumeS3Key, 900); // 15 minutes
+      } catch (error) {
+        console.warn('⚠️  Failed to generate presigned URL:', error.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        fileName: jobSettings.resumeFileName,
+        downloadUrl: downloadUrl,
+      },
+    });
+  } catch (error) {
+    console.error('Resume download error:', error);
+
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to generate download URL',
+    });
+  }
+});
+
+/**
  * DELETE /api/resume/delete
  * Delete resume from S3 and database
  * Requires authentication
