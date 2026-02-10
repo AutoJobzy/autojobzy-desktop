@@ -350,21 +350,60 @@ ipcMain.handle('start-automation', async (event, config) => {
 
     // Fetch Naukri credentials from AWS backend
     const fetch = (await import('node-fetch')).default;
-    const response = await fetch(`${API_BASE_URL}/job-settings`, {
+
+    // Fetch job settings for credentials
+    const settingsResponse = await fetch(`${API_BASE_URL}/job-settings`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
     });
 
-    if (!response.ok) {
+    if (!settingsResponse.ok) {
       throw new Error('Failed to fetch job settings from server');
     }
 
-    const settings = await response.json();
+    const settings = await settingsResponse.json();
 
     if (!settings.naukriEmail || !settings.naukriPassword) {
       throw new Error('Naukri credentials not found. Please add them in Job Profile settings.');
     }
+
+    // ✅ FETCH FINAL URL FROM /api/filters/user
+    console.log('📡 Fetching finalUrl from /api/filters/user...');
+    const filtersResponse = await fetch(`${API_BASE_URL}/filters/user`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    let finalUrl = null;
+    if (filtersResponse.ok) {
+      const filtersData = await filtersResponse.json();
+      finalUrl = filtersData?.data?.finalUrl || null;
+      console.log('✅ FinalUrl from filters:', finalUrl ? finalUrl.substring(0, 80) + '...' : 'NOT FOUND');
+    } else {
+      console.log('⚠️  Failed to fetch filters, will use fallback');
+    }
+
+    // ✅ FETCH SKILLS FROM DATABASE
+    console.log('📡 Fetching skills from database...');
+    const skillsResponse = await fetch(`${API_BASE_URL}/job-settings/answers-data`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    let skills = [];
+    if (skillsResponse.ok) {
+      const answersData = await skillsResponse.json();
+      skills = answersData.skills || [];
+      console.log(`✅ Loaded ${skills.length} skills from database`);
+    } else {
+      console.log('⚠️  Failed to fetch skills');
+    }
+
+    // Add skills to settings
+    settings.skills = skills;
 
     // Run automation locally with visible browser
     const result = await runNaukriAutomation({
@@ -372,8 +411,8 @@ ipcMain.handle('start-automation', async (event, config) => {
       naukriPassword: settings.naukriPassword,
       searchKeywords: config.searchKeywords || settings.searchKeywords || 'Software Engineer',
       maxPages: config.maxPages || 5,
-      jobUrl: settings.finalUrl || null,
-      userSettings: settings  // Pass full settings for AI answers
+      jobUrl: finalUrl || null,  // ✅ Use finalUrl from /api/filters/user
+      userSettings: settings  // Pass full settings with skills for AI answers
     }, (log) => {
       // Send logs to renderer in real-time
       currentAutomationLogs.push(log);

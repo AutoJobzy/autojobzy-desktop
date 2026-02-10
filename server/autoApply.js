@@ -989,19 +989,32 @@ export async function startAutomation(options = {}) {
         let finalJobUrl = jobUrl;
 
         if (!finalJobUrl && userId) {
+            // First try to get saved finalUrl from user_filters
             finalJobUrl = await fetchFinalUrlFromDB(userId);
 
             if (finalJobUrl) {
                 addLog(`✅ Using your saved search URL from 'ENTER YOUR SEARCH URL' field`, "success");
                 addLog(`🔗 URL: ${finalJobUrl.substring(0, 80)}...`, "info");
             } else {
-                addLog(`⚠️ No search URL found in database. Using default fallback URL.`, "warning");
-                finalJobUrl = "https://www.naukri.com/java-full-stack-developer-jobs?k=java+full+stack+developer";
+                // If no finalUrl, construct from job settings
+                addLog(`⚠️ No saved URL found. Building URL from job settings...`, "warning");
+                finalJobUrl = await buildUrlFromJobSettings(userId);
+
+                if (finalJobUrl) {
+                    addLog(`✅ Constructed URL from job settings`, "success");
+                    addLog(`🔗 URL: ${finalJobUrl.substring(0, 80)}...`, "info");
+                } else {
+                    addLog(`⚠️ Using default fallback URL.`, "warning");
+                    finalJobUrl = "https://www.naukri.com/software-engineer-jobs?k=software+engineer";
+                }
             }
         }
 
 
 
+        /**
+         * Fetch finalUrl from user_filters table
+         */
         async function fetchFinalUrlFromDB(userId) {
             try {
                 const [rows] = await sequelize.query(
@@ -1030,6 +1043,63 @@ export async function startAutomation(options = {}) {
             } catch (err) {
                 console.error('❌ Database error fetching URL:', err.message);
                 addLog('Unable to retrieve saved job URL from database', 'warning');
+                return null;
+            }
+        }
+
+        /**
+         * Build Naukri search URL from job settings (Target Role, Location, Keywords)
+         */
+        async function buildUrlFromJobSettings(userId) {
+            try {
+                const [rows] = await sequelize.query(
+                    `SELECT target_role, location, search_keywords, years_of_experience
+                     FROM job_settings
+                     WHERE user_id = :userId
+                     LIMIT 1`,
+                    { replacements: { userId } }
+                );
+
+                if (!rows || rows.length === 0) {
+                    console.log("❌ No job settings found for userId:", userId);
+                    return null;
+                }
+
+                const settings = rows[0];
+                const role = settings.target_role || 'software engineer';
+                const location = settings.location || '';
+                const keywords = settings.search_keywords || role;
+                const experience = settings.years_of_experience || 0;
+
+                // Construct Naukri URL
+                // Format: https://www.naukri.com/{role}-jobs-in-{location}?k={keywords}&experience={exp}
+                let url = 'https://www.naukri.com/';
+
+                // Add role (lowercase, replace spaces with -)
+                const roleSlug = role.toLowerCase().replace(/\s+/g, '-');
+                url += `${roleSlug}-jobs`;
+
+                // Add location if present
+                if (location && location.trim() !== '') {
+                    const locationSlug = location.toLowerCase().replace(/\s+/g, '-');
+                    url += `-in-${locationSlug}`;
+                }
+
+                // Add query parameters
+                const params = new URLSearchParams();
+                params.append('k', keywords.toLowerCase());
+
+                if (experience && experience > 0) {
+                    params.append('experience', experience.toString());
+                }
+
+                url += `?${params.toString()}`;
+
+                console.log("✅ Built URL from job settings:", url);
+                return url;
+
+            } catch (err) {
+                console.error('❌ Error building URL from job settings:', err.message);
                 return null;
             }
         }
@@ -1114,6 +1184,32 @@ export async function startAutomation(options = {}) {
         if (!loginSuccess) {
             throw new Error('Login failed. Please check your credentials and page selectors.');
         }
+
+        // ========== STEP 3.1: VERIFY HOMEPAGE LOAD AFTER LOGIN ==========
+        addLog('✅ Login successful! Verifying Naukri homepage loaded...', 'success');
+
+        // Check if we're on homepage, if not navigate there first
+        const currentUrl = page.url();
+        if (!currentUrl.includes('naukri.com')) {
+            addLog('Navigating to Naukri homepage first...', 'info');
+            await safeGoto(page, 'https://www.naukri.com/mnjuser/homepage');
+            await delay(2000);
+        }
+
+        addLog('📍 Currently on: https://www.naukri.com/mnjuser/homepage', 'info');
+        await delay(1000); // Wait for homepage to stabilize
+
+        // ========== STEP 3.2: REDIRECT TO SAVED SEARCH URL FROM HOMEPAGE ==========
+        addLog('🚀 Redirecting from homepage to your saved search URL...', 'info');
+        addLog(`🔗 Target URL: ${finalJobUrl.substring(0, 80)}...`, 'info');
+
+        const redirectSuccess = await safeGoto(page, finalJobUrl);
+        if (!redirectSuccess) {
+            throw new Error('Failed to navigate to your saved search URL. Please check if the URL is correct.');
+        }
+
+        addLog('✅ Successfully redirected to your search results page!', 'success');
+        await delay(3000); // Wait for page to fully load
 
         // ========== STEP 3.5: FETCH YEARS OF EXPERIENCE FROM DATABASE ==========
         let yearsOfExperience = 0;

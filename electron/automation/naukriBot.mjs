@@ -27,8 +27,65 @@ function delay(ms) {
 }
 
 /**
+ * Find matching skill from database
+ */
+function findMatchingSkill(question) {
+    if (!question || skillsData.length === 0) return null;
+
+    const normalizedQuestion = question.toLowerCase();
+
+    // Try to find exact or partial match with skill_name or display_name
+    for (const skill of skillsData) {
+        const skillName = (skill.skill_name || skill.name || '').toLowerCase();
+        const displayName = (skill.display_name || skill.name || '').toLowerCase();
+
+        if (normalizedQuestion.includes(skillName) || normalizedQuestion.includes(displayName)) {
+            return skill;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Generate answer for skill-related questions
+ */
+function generateSkillAnswer(question, skill) {
+    const normalizedQuestion = question.toLowerCase();
+
+    // Experience-related questions
+    if (normalizedQuestion.includes('experience') || normalizedQuestion.includes('worked') ||
+        normalizedQuestion.includes('using') || normalizedQuestion.includes('years')) {
+        if (skill.experience) {
+            return `${skill.experience}`;
+        }
+        return `3 years`;
+    }
+
+    // Rating/Proficiency questions
+    if (normalizedQuestion.includes('rate') || normalizedQuestion.includes('rating') ||
+        normalizedQuestion.includes('proficient') || normalizedQuestion.includes('good') ||
+        normalizedQuestion.includes('scale') || normalizedQuestion.includes('expertise')) {
+        if (skill.rating && skill.out_of) {
+            return `${skill.rating}/${skill.out_of}`;
+        } else if (skill.rating) {
+            return `${skill.rating}/10`;
+        }
+        return `7/10`;
+    }
+
+    // General skill questions - just return experience or default
+    if (skill.experience) {
+        return `${skill.experience}`;
+    }
+
+    // Skill exists but no detailed data
+    return `Working knowledge`;
+}
+
+/**
  * Generate intelligent answer for chatbot question
- * Uses pattern matching based on user data from database
+ * Uses pattern matching based on user data from database + SKILLS
  */
 function getIntelligentAnswer(question) {
     if (!question || !userAnswersData) {
@@ -36,6 +93,14 @@ function getIntelligentAnswer(question) {
     }
 
     const lowerQuestion = question.toLowerCase();
+
+    // ✅ STEP 1: Check if question is skill-related
+    const matchingSkill = findMatchingSkill(question);
+    if (matchingSkill) {
+        const skillAnswer = generateSkillAnswer(question, matchingSkill);
+        console.log(`✓ Skill Question: "${question}" → "${skillAnswer}" (from skills DB)`);
+        return skillAnswer;
+    }
 
     // Check for city residence questions
     const residingPattern = /(?:residing|living|staying|located|reside|live|stay)\s+(?:in|at)\s+([a-zA-Z\s]+?)(?:\?|$)/i;
@@ -492,10 +557,27 @@ export async function runNaukriAutomation(config, onLog = () => {}) {
             name: userSettings.name || userSettings.fullName || 'User'
         };
 
+        // ✅ Load skills data from userSettings
+        if (userSettings.skills && Array.isArray(userSettings.skills)) {
+            skillsData = userSettings.skills.map(skill => ({
+                skill_name: skill.skillName || skill.name || '',
+                display_name: skill.displayName || skill.name || '',
+                name: skill.name || skill.skillName || '',
+                rating: skill.rating || 0,
+                out_of: skill.out_of || 10,
+                experience: skill.experience || '0 years'
+            }));
+            console.log(`✅ Loaded ${skillsData.length} skills for intelligent answers`);
+        } else {
+            console.log('⚠️  No skills data found in userSettings');
+            skillsData = [];
+        }
+
         console.log('✅ User data loaded for AI answers:', {
             name: userAnswersData.name,
             location: userAnswersData.location,
-            experience: normalizedYears
+            experience: normalizedYears,
+            skillsCount: skillsData.length
         });
     }
 
@@ -558,12 +640,33 @@ export async function runNaukriAutomation(config, onLog = () => {}) {
             throw new Error('Login failed. Please check your credentials.');
         }
 
-        // Determine job URL
-        let finalJobUrl = jobUrl;
-        if (!finalJobUrl) {
-            finalJobUrl = `https://www.naukri.com/${searchKeywords.toLowerCase().replace(/ /g, '-')}-jobs?k=${encodeURIComponent(searchKeywords)}`;
-            addLog(`Using search keywords: ${searchKeywords}`, 'info');
+        // ========== HOMEPAGE REDIRECT AFTER LOGIN ==========
+        addLog('✅ Login successful! Verifying homepage...', 'success');
+
+        // Navigate to homepage first
+        const currentUrl = page.url();
+        if (!currentUrl.includes('naukri.com')) {
+            addLog('Navigating to Naukri homepage...', 'info');
+            await safeGoto(page, 'https://www.naukri.com/mnjuser/homepage');
+            await delay(2000);
         }
+
+        addLog('📍 Currently on homepage', 'info');
+        await delay(1000);
+
+        // ========== GET FINAL URL FROM DATABASE ==========
+        // NOTE: Electron app should pass finalUrl from database in config.jobUrl
+        // This will come from user_filters.final_url via API call
+        let finalJobUrl = jobUrl;  // This should be from database!
+
+        if (!finalJobUrl) {
+            addLog('⚠️  No saved URL found in database!', 'warning');
+            addLog('⚠️  Please save your search URL in Dashboard > Job Search Filters', 'warning');
+            throw new Error('No search URL configured. Please save a URL in the Dashboard first.');
+        }
+
+        addLog('🚀 Redirecting to your saved search URL...', 'info');
+        addLog(`🔗 URL: ${finalJobUrl.substring(0, 80)}...`, 'info');
 
         // Process job pages
         let currentPage = 1;
