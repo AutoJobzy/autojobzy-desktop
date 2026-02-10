@@ -1,18 +1,11 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext';
-import { Sun, Moon, Monitor, Check, Settings as SettingsIcon } from 'lucide-react';
+import { Moon, Monitor, Check, Settings as SettingsIcon } from 'lucide-react';
 
 const AppSettings: React.FC = () => {
   const { theme, setTheme } = useTheme();
 
   const themeOptions = [
-    {
-      value: 'light' as const,
-      label: 'Light Mode',
-      icon: Sun,
-      description: 'Bright and clear interface',
-      gradient: 'from-yellow-400 to-orange-400'
-    },
     {
       value: 'dark' as const,
       label: 'Dark Mode',

@@ -421,6 +421,38 @@ ipcMain.handle('start-automation', async (event, config) => {
       }
     });
 
+    // ✅ Save job results to database via API
+    if (result.success && result.jobResults && result.jobResults.length > 0) {
+      try {
+        console.log(`📤 Saving ${result.jobResults.length} job results to database...`);
+
+        const saveResponse = await fetch(`${API_BASE_URL}/job-results/bulk`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ results: result.jobResults })
+        });
+
+        if (saveResponse.ok) {
+          const saveData = await saveResponse.json();
+          console.log(`✅ Successfully saved ${saveData.count} results to database`);
+          result.savedToDatabase = true;
+          result.savedCount = saveData.count;
+        } else {
+          console.warn('⚠️ Failed to save results to database:', saveResponse.statusText);
+          result.savedToDatabase = false;
+        }
+      } catch (saveError) {
+        console.error('❌ Error saving to database:', saveError.message);
+        result.savedToDatabase = false;
+        result.saveError = saveError.message;
+      }
+    } else {
+      console.log('ℹ️ No job results to save to database');
+    }
+
     automationRunning = false;
     return result;
 

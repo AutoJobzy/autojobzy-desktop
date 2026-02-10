@@ -591,6 +591,7 @@ export async function runNaukriAutomation(config, onLog = () => {}) {
     isRunning = true;
     const logs = [];
     let totalJobsApplied = 0;
+    const jobResults = []; // ✅ Store job results for database
 
     const addLog = (message, type = 'info') => {
         const log = {
@@ -746,8 +747,31 @@ export async function runNaukriAutomation(config, onLog = () => {}) {
                 const externalApply = await jobPage.$('#company-site-button');
                 const applyBtn = await jobPage.$('#apply-button');
 
+                // Determine apply type and status
+                let applyType = 'No Apply Button';
+                let applicationStatus = 'Skipped';
+                if (externalApply) applyType = 'External Apply';
+                else if (applyBtn) applyType = 'Direct Apply';
+
+                // Create job result record
+                const jobResult = {
+                    datetime: new Date(),
+                    pageNumber: currentPage,
+                    jobNumber: `${i + 1}/${jobLinks.length}`,
+                    companyUrl: link,
+                    applyType: applyType,
+                    applicationStatus: applicationStatus,
+                    jobTitle: jobDetails.jobTitle,
+                    companyName: jobDetails.companyName,
+                    location: jobDetails.location,
+                    salary: jobDetails.salary,
+                    matchStatus: 'Good Match', // Default for now
+                    MatchScore: '4/5' // Default for now
+                };
+
                 if (externalApply || !applyBtn) {
                     addLog('Skipping job (external apply or no button)', 'warning');
+                    jobResults.push(jobResult); // Save skipped job
                     await jobPage.close();
                     await delay(1000);
                     continue;
@@ -760,6 +784,10 @@ export async function runNaukriAutomation(config, onLog = () => {}) {
 
                 // Handle chatbot
                 await handleChatbot(jobPage, addLog);
+
+                // Mark as applied and save
+                jobResult.applicationStatus = 'Applied';
+                jobResults.push(jobResult);
 
                 totalJobsApplied++;
                 addLog(`✅ Job application submitted! Total applied: ${totalJobsApplied}`, 'success');
@@ -782,6 +810,7 @@ export async function runNaukriAutomation(config, onLog = () => {}) {
         return {
             success: true,
             jobsApplied: totalJobsApplied,
+            jobResults: jobResults, // ✅ Return job results for DB save
             logs,
             message: `Successfully applied to ${totalJobsApplied} jobs`
         };
@@ -791,6 +820,7 @@ export async function runNaukriAutomation(config, onLog = () => {}) {
         return {
             success: false,
             jobsApplied: totalJobsApplied,
+            jobResults: jobResults, // ✅ Return job results even on error
             logs,
             error: error.message
         };
