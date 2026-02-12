@@ -11,8 +11,8 @@ console.log('🚀 [Preload] Platform:', process.platform);
 console.log('🚀 [Preload] Arch:', process.arch);
 console.log('🚀 [Preload] Node version:', process.version);
 
-// Expose protected methods to renderer process
-contextBridge.exposeInMainWorld('electronAPI', {
+// Define API object (will be exposed as both electronAPI and electron)
+const electronAPIObject = {
   // Get app version
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
@@ -73,11 +73,41 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const subscription = (event, error) => callback(error);
     ipcRenderer.on('automation-module-error', subscription);
     return subscription;
+  },
+
+  // ===== PROFILE UPDATE APIs =====
+  // Start profile update locally
+  startProfileUpdate: (config) => ipcRenderer.invoke('start-profile-update', config),
+
+  // Check if profile update is running
+  isProfileUpdateRunning: () => ipcRenderer.invoke('is-profile-update-running'),
+
+  // Stop profile update
+  stopProfileUpdate: () => ipcRenderer.invoke('stop-profile-update'),
+
+  // Listen for real-time profile update logs
+  onProfileUpdateLog: (callback) => {
+    const subscription = (event, log) => callback(log);
+    ipcRenderer.on('profile-update-log', subscription);
+    return subscription;
+  },
+
+  // Remove profile update log listener
+  removeProfileUpdateLogListener: (callback) => {
+    if (callback) {
+      ipcRenderer.removeListener('profile-update-log', callback);
+    } else {
+      ipcRenderer.removeAllListeners('profile-update-log');
+    }
   }
-});
+};
+
+// Expose as both 'electronAPI' and 'electron' for convenience
+contextBridge.exposeInMainWorld('electronAPI', electronAPIObject);
+contextBridge.exposeInMainWorld('electron', electronAPIObject);
 
 console.log('✅ [Preload] Electron preload script loaded successfully');
-console.log('✅ [Preload] electronAPI exposed to window object');
+console.log('✅ [Preload] electronAPI & electron exposed to window object');
 console.log('✅ [Preload] Available methods:', Object.keys({
   getAppVersion: true,
   isElectron: true,
@@ -89,5 +119,9 @@ console.log('✅ [Preload] Available methods:', Object.keys({
   isAutomationRunning: true,
   stopAutomation: true,
   onAutomationLog: true,
-  removeAutomationLogListener: true
+  removeAutomationLogListener: true,
+  startProfileUpdate: true,
+  isProfileUpdateRunning: true,
+  stopProfileUpdate: true,
+  onProfileUpdateLog: true
 }));

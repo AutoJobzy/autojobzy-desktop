@@ -86,15 +86,35 @@ const AutoProfileUpdate: React.FC = () => {
         throw new Error('Authentication required. Please login again.');
       }
 
-      const response = await fetch(`${API_BASE_URL}/profile-update/naukri/update-resume`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      // ✅ Check if running in Electron
+      const isElectron = window.electron && window.electron.isElectron;
 
-      const data = await response.json();
+      let data;
+
+      if (isElectron) {
+        // ✅ Run LOCAL profile update via IPC
+        console.log('🖥️  Running profile update locally in Electron');
+
+        // Listen for real-time logs
+        window.electron.onProfileUpdateLog?.((log: any) => {
+          setLogs(prev => [...prev, log.message]);
+        });
+
+        data = await window.electron.startProfileUpdate({ token });
+      } else {
+        // ✅ Run REMOTE profile update via API
+        console.log('🌐 Running profile update via API');
+
+        const response = await fetch(`${API_BASE_URL}/profile-update/naukri/update-resume`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        data = await response.json();
+      }
 
       if (data.success) {
         toast.success('Profile updated successfully!', { id: loadingToast });
@@ -102,12 +122,12 @@ const AutoProfileUpdate: React.FC = () => {
           status: 'success',
           message: data.message || 'Resume headline updated successfully',
           lastUpdate: new Date().toISOString(),
-          executedAt: data.executedAt
+          executedAt: data.executedAt || new Date().toISOString()
         });
 
         // Update logs if provided
         if (data.logs && Array.isArray(data.logs)) {
-          setLogs(data.logs);
+          setLogs(data.logs.map((l: any) => typeof l === 'string' ? l : l.message));
         }
 
         // Refresh last update status

@@ -489,6 +489,142 @@ ipcMain.handle('stop-automation', async () => {
 });
 
 /**
+ * PROFILE UPDATE IPC HANDLERS
+ * Runs Puppeteer profile update locally in Electron
+ */
+let profileUpdateRunning = false;
+let currentProfileUpdateLogs = [];
+let runProfileUpdate = null;
+let stopProfileUpdateFn = null;
+let profileUpdateModuleReady = false;
+
+// Dynamically import profile update module (ES module)
+async function loadProfileUpdateModule() {
+  try {
+    const profileUpdateModulePath = path.join(__dirname, 'automation', 'profileUpdateBot.mjs');
+    const profileUpdateModuleUrl = `file://${profileUpdateModulePath.replace(/\\/g, '/')}`;
+
+    debugLog(`Loading profile update module from: ${profileUpdateModuleUrl}`);
+    debugLog(`Module path exists: ${fs.existsSync(profileUpdateModulePath)}`);
+
+    const profileUpdateModule = await import(profileUpdateModuleUrl);
+
+    runProfileUpdate = profileUpdateModule.runProfileUpdate;
+    stopProfileUpdateFn = profileUpdateModule.stopProfileUpdate;
+
+    profileUpdateModuleReady = true;
+
+    debugLog('✅ Local profile update module loaded successfully');
+    console.log('✅ Local profile update module loaded and ready');
+
+    return true;
+  } catch (error) {
+    profileUpdateModuleReady = false;
+    debugLog(`❌ Failed to load profile update module: ${error.message}`);
+    console.error('❌ Failed to load profile update module:', error);
+    return false;
+  }
+}
+
+// Load profile update module after app is ready
+app.whenReady().then(async () => {
+  setTimeout(async () => {
+    await loadProfileUpdateModule();
+  }, 3000); // Load after automation module
+});
+
+// Start profile update locally
+ipcMain.handle('start-profile-update', async (event, config) => {
+  if (!runProfileUpdate || !profileUpdateModuleReady) {
+    return {
+      success: false,
+      error: 'Profile update module not loaded yet. Please try again.'
+    };
+  }
+
+  if (profileUpdateRunning) {
+    return {
+      success: false,
+      error: 'Profile update already running'
+    };
+  }
+
+  profileUpdateRunning = true;
+  currentProfileUpdateLogs = [];
+
+  try {
+    console.log('🖥️  Starting LOCAL profile update');
+
+    // Fetch credentials from AWS backend
+    const API_BASE_URL = 'https://api.autojobzy.com/api';
+    const token = config.token;
+
+    if (!token) {
+      throw new Error('No authentication token provided');
+    }
+
+    const fetch = (await import('node-fetch')).default;
+
+    // Fetch job settings for credentials
+    const settingsResponse = await fetch(`${API_BASE_URL}/job-settings`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!settingsResponse.ok) {
+      throw new Error('Failed to fetch job settings from server');
+    }
+
+    const settings = await settingsResponse.json();
+
+    if (!settings.naukriEmail || !settings.naukriPassword) {
+      throw new Error('Naukri credentials not found. Please add them in Job Profile settings.');
+    }
+
+    // Run profile update locally with visible browser
+    const result = await runProfileUpdate({
+      naukriEmail: settings.naukriEmail,
+      naukriPassword: settings.naukriPassword
+    }, (log) => {
+      // Send logs to renderer in real-time
+      currentProfileUpdateLogs.push(log);
+      if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('profile-update-log', log);
+      }
+    });
+
+    profileUpdateRunning = false;
+    return result;
+
+  } catch (error) {
+    console.error('Profile update error:', error);
+    profileUpdateRunning = false;
+    return {
+      success: false,
+      error: error.message,
+      logs: currentProfileUpdateLogs
+    };
+  }
+});
+
+// Check if profile update is running
+ipcMain.handle('is-profile-update-running', () => {
+  return profileUpdateRunning;
+});
+
+// Stop profile update
+ipcMain.handle('stop-profile-update', async () => {
+  if (!stopProfileUpdateFn) {
+    return { success: false, message: 'Profile update module not loaded' };
+  }
+
+  profileUpdateRunning = false;
+  const result = await stopProfileUpdateFn();
+  return result;
+});
+
+/**
  * Handle uncaught exceptions
  */
 process.on('uncaughtException', (error) => {
