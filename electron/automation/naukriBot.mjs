@@ -5,7 +5,7 @@
  * No AWS server needed - runs entirely on user's computer
  */
 
-import puppeteer from 'puppeteer';
+import { launchBrowser } from '../../server/utils/puppeteerHelper.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -84,11 +84,45 @@ function generateSkillAnswer(question, skill) {
 }
 
 /**
+ * Validate if question is a valid interview question
+ * Returns false for greetings, messages without '?', etc.
+ */
+function isValidInterviewQuestion(question) {
+    if (!question || question.trim() === '') return false;
+
+    // Ignore greetings or generic messages
+    const greetings = [
+        'hi', 'hello', 'thank you', 'kindly answer', 'please answer',
+        'showing interest', 'successfully apply'
+    ];
+
+    const lowerQ = question.toLowerCase();
+    for (const greet of greetings) {
+        if (lowerQ.includes(greet)) {
+            return false; // It's a greeting or non-question
+        }
+    }
+
+    // ✅ Check if question ends with '?'
+    if (!question.trim().endsWith('?')) {
+        return false; // Not a proper question
+    }
+
+    return true; // Valid question
+}
+
+/**
  * Generate intelligent answer for chatbot question
  * Uses pattern matching based on user data from database + SKILLS
  */
 function getIntelligentAnswer(question) {
-    if (!question || !userAnswersData) {
+    // ✅ VALIDATE QUESTION FIRST
+    if (!isValidInterviewQuestion(question)) {
+        console.log(`⚠️ Ignored non-interview question: "${question}"`);
+        return ''; // Return empty for invalid questions
+    }
+
+    if (!userAnswersData) {
         return "Yes, I'm interested";
     }
 
@@ -161,7 +195,8 @@ function getIntelligentAnswer(question) {
         }
     }
 
-    // Default fallback
+    // Default fallback for valid questions with no pattern match
+    // (Question has '?' and is not a greeting, but we don't have specific data)
     return "Yes, I'm interested";
 }
 
@@ -621,7 +656,7 @@ export async function runNaukriAutomation(config, onLog = () => {}) {
         };
 
         addLog('Launching browser window...', 'info');
-        browser = await puppeteer.launch(browserConfig);
+        browser = await launchBrowser(browserConfig); // ✅ Auto-installs Chrome if missing
 
         const page = await browser.newPage();
 

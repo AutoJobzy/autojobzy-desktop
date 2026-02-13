@@ -218,10 +218,107 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
         </div>
       )}
 
-      {/* Left Column - Login Form */}
+      {/* Left Column - Promotional Content */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-dark-800 to-dark-900 p-12 relative overflow-hidden">
+        {/* Background decoration for right side */}
+        <div className="absolute top-[-20%] right-[-20%] w-[600px] h-[600px] bg-neon-purple/10 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-[-20%] left-[-20%] w-[600px] h-[600px] bg-neon-blue/10 rounded-full blur-[120px]"></div>
+
+        <div className="relative z-10 flex flex-col justify-center w-full max-w-xl mx-auto">
+          {/* Hero Section */}
+          <div className="mb-12">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-neon-blue to-neon-purple rounded-xl flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-4xl font-heading font-bold text-white">
+                Auto<span className="text-neon-blue">Jobzy</span>
+              </h1>
+            </div>
+            <p className="text-2xl font-bold text-white mb-3">
+              Automate Your Job Applications
+            </p>
+            <p className="text-gray-400 text-lg">
+              Save hours every day. Let AutoJobzy apply to relevant jobs automatically while you focus on what matters.
+            </p>
+          </div>
+
+          {/* Feature Cards */}
+          <div className="space-y-6">
+            {/* Feature 1 */}
+            <div className="bg-dark-900/50 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-neon-blue/30 transition-all duration-300 group">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-neon-blue/10 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-neon-blue/20 transition-colors">
+                  <svg className="w-6 h-6 text-neon-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-white font-bold text-lg mb-2">Lightning Fast Applications</h3>
+                  <p className="text-gray-400 text-sm">
+                    Apply to hundreds of jobs in minutes. Our automation engine works 24/7 to find and apply to relevant positions.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Feature 2 */}
+            <div className="bg-dark-900/50 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-neon-purple/30 transition-all duration-300 group">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-neon-purple/10 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-neon-purple/20 transition-colors">
+                  <svg className="w-6 h-6 text-neon-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-white font-bold text-lg mb-2">Smart Job Matching</h3>
+                  <p className="text-gray-400 text-sm">
+                    Advanced algorithms match your skills, experience, and preferences to find the perfect job opportunities.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Feature 3 */}
+            <div className="bg-dark-900/50 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-neon-green/30 transition-all duration-300 group">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-neon-green/10 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-neon-green/20 transition-colors">
+                  <svg className="w-6 h-6 text-neon-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-white font-bold text-lg mb-2">Track Your Progress</h3>
+                  <p className="text-gray-400 text-sm">
+                    Real-time analytics and detailed reports show your application status, response rates, and success metrics.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-4 mt-12 pt-8 border-t border-white/10">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-neon-blue mb-1">10K+</div>
+              <div className="text-xs text-gray-400 uppercase tracking-wider">Applications</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-neon-purple mb-1">500+</div>
+              <div className="text-xs text-gray-400 uppercase tracking-wider">Active Users</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-neon-green mb-1">95%</div>
+              <div className="text-xs text-gray-400 uppercase tracking-wider">Success Rate</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Column - Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative z-10">
-        {/* Background decoration for left side */}
-        <div className="absolute top-[-10%] left-[-10%] w-[400px] h-[400px] bg-neon-blue/10 rounded-full blur-[100px]"></div>
+        {/* Background decoration for right side */}
+        <div className="absolute top-[-10%] right-[-10%] w-[400px] h-[400px] bg-neon-blue/10 rounded-full blur-[100px]"></div>
 
         <div className="w-full max-w-md bg-dark-800 border border-white/10 rounded-2xl p-8 shadow-2xl relative z-10">
         <div className="text-center mb-8">
@@ -375,103 +472,6 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
             <>Already have an account? <Link to="/login" className="text-neon-blue hover:underline">Login</Link></>
           )}
         </div>
-        </div>
-      </div>
-
-      {/* Right Column - Promotional Content */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-dark-800 to-dark-900 p-12 relative overflow-hidden">
-        {/* Background decoration for right side */}
-        <div className="absolute top-[-20%] right-[-20%] w-[600px] h-[600px] bg-neon-purple/10 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-[-20%] left-[-20%] w-[600px] h-[600px] bg-neon-blue/10 rounded-full blur-[120px]"></div>
-
-        <div className="relative z-10 flex flex-col justify-center w-full max-w-xl mx-auto">
-          {/* Hero Section */}
-          <div className="mb-12">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-neon-blue to-neon-purple rounded-xl flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-4xl font-heading font-bold text-white">
-                Auto<span className="text-neon-blue">Jobzy</span>
-              </h1>
-            </div>
-            <p className="text-2xl font-bold text-white mb-3">
-              Automate Your Job Applications
-            </p>
-            <p className="text-gray-400 text-lg">
-              Save hours every day. Let AutoJobzy apply to relevant jobs automatically while you focus on what matters.
-            </p>
-          </div>
-
-          {/* Feature Cards */}
-          <div className="space-y-6">
-            {/* Feature 1 */}
-            <div className="bg-dark-900/50 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-neon-blue/30 transition-all duration-300 group">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-neon-blue/10 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-neon-blue/20 transition-colors">
-                  <svg className="w-6 h-6 text-neon-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-white font-bold text-lg mb-2">Lightning Fast Applications</h3>
-                  <p className="text-gray-400 text-sm">
-                    Apply to hundreds of jobs in minutes. Our automation engine works 24/7 to find and apply to relevant positions.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="bg-dark-900/50 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-neon-purple/30 transition-all duration-300 group">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-neon-purple/10 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-neon-purple/20 transition-colors">
-                  <svg className="w-6 h-6 text-neon-purple" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-white font-bold text-lg mb-2">Smart Job Matching</h3>
-                  <p className="text-gray-400 text-sm">
-                    Advanced algorithms match your skills, experience, and preferences to find the perfect job opportunities.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="bg-dark-900/50 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:border-neon-green/30 transition-all duration-300 group">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-neon-green/10 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-neon-green/20 transition-colors">
-                  <svg className="w-6 h-6 text-neon-green" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-white font-bold text-lg mb-2">Track Your Progress</h3>
-                  <p className="text-gray-400 text-sm">
-                    Real-time analytics and detailed reports show your application status, response rates, and success metrics.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mt-12 pt-8 border-t border-white/10">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-neon-blue mb-1">10K+</div>
-              <div className="text-xs text-gray-400 uppercase tracking-wider">Applications</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-neon-purple mb-1">500+</div>
-              <div className="text-xs text-gray-400 uppercase tracking-wider">Active Users</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-neon-green mb-1">95%</div>
-              <div className="text-xs text-gray-400 uppercase tracking-wider">Success Rate</div>
-            </div>
-          </div>
         </div>
       </div>
 

@@ -40,13 +40,7 @@ function isDev() {
   return !app.isPackaged;
 }
 
-// Initialize logger immediately
-try {
-  logFilePath = initLogger();
-  console.log('📝 Logger initialized. Log file:', logFilePath);
-} catch (error) {
-  console.error('Failed to initialize logger:', error);
-}
+// Logger will be initialized after app is ready (moved to app.whenReady)
 
 /**
  * Create the main application window
@@ -79,18 +73,18 @@ function createWindow() {
   if (isDev()) {
     // Development: Load from Vite dev server
     mainWindow.loadURL(VITE_DEV_SERVER_URL);
-    mainWindow.webContents.openDevTools(); // Open DevTools in development
+    // mainWindow.webContents.openDevTools(); // Disabled - DevTools won't auto-open
   } else {
     // Production: Load from built files
     const indexPath = path.join(__dirname, '../dist/index.html');
     console.log('Loading index.html from:', indexPath);
     mainWindow.loadFile(indexPath);
 
-    // FORCE DevTools to open immediately
-    mainWindow.webContents.on('did-finish-load', () => {
-      mainWindow.webContents.openDevTools({ mode: 'right' });
-      console.log('✅ DevTools opened');
-    });
+    // DevTools disabled - User can manually open with F12 or View menu if needed
+    // mainWindow.webContents.on('did-finish-load', () => {
+    //   mainWindow.webContents.openDevTools({ mode: 'right' });
+    //   console.log('✅ DevTools opened');
+    // });
   }
 
   // Log any load failures
@@ -126,6 +120,14 @@ function createWindow() {
  * App lifecycle: Ready
  */
 app.whenReady().then(async () => {
+  // Initialize logger (must be after app.whenReady)
+  try {
+    logFilePath = initLogger();
+    console.log('📝 Logger initialized. Log file:', logFilePath);
+  } catch (error) {
+    console.error('Failed to initialize logger:', error);
+  }
+
   // Write startup marker
   try {
     fs.writeFileSync('/tmp/autojobzy-startup.txt', `App started at ${new Date().toISOString()}\n`);
@@ -133,6 +135,26 @@ app.whenReady().then(async () => {
 
   debugLog('=== Electron App Starting ===');
   console.log('🚀 Electron app starting...');
+
+  // ===== AUTO-INSTALL CHROME ON FIRST RUN =====
+  console.log('\n🔍 Checking Chrome availability...');
+  try {
+    // Dynamic import for ES module
+    const { ensureChromeAvailable } = await import('../server/utils/puppeteerHelper.js');
+    const chromeStatus = await ensureChromeAvailable();
+
+    if (chromeStatus.available) {
+      console.log('✅ Chrome ready for automation');
+      console.log(`📍 Chrome location: ${chromeStatus.executablePath}`);
+    } else {
+      console.error('⚠️  Chrome not available - automation may fail');
+      console.error('   Install Google Chrome from https://www.google.com/chrome/');
+    }
+  } catch (error) {
+    console.error('❌ Chrome check failed:', error.message);
+    console.error('   Automation features may not work properly');
+  }
+  console.log('');
 
   // Create window first so we can show errors
   createWindow();

@@ -102,8 +102,11 @@ async function installPuppeteerChrome() {
 
 /**
  * Ensure Chrome is available (check once per session)
+ * ✅ AUTO-INSTALLS Chrome on first run if missing
+ * Call this on app startup BEFORE any Puppeteer usage
+ * @returns {Promise<{available: boolean, executablePath: string|null}>}
  */
-async function ensureChromeAvailable() {
+export async function ensureChromeAvailable() {
     if (chromeCheckCompleted) {
         return { available: chromeAvailable, executablePath: chromeExecutablePath };
     }

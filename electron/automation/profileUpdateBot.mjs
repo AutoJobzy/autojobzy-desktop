@@ -4,7 +4,7 @@
  * Updates Naukri resume headline to keep profile fresh
  */
 
-import puppeteer from 'puppeteer';
+import { launchBrowser } from '../../server/utils/puppeteerHelper.js';
 
 // Global state
 let browser = null;
@@ -237,7 +237,7 @@ export async function runProfileUpdate(config, onLog = () => {}) {
         };
 
         addLog('Launching browser window...', 'info');
-        browser = await puppeteer.launch(browserConfig);
+        browser = await launchBrowser(browserConfig); // ✅ Auto-installs Chrome if missing
 
         const page = await browser.newPage();
 
