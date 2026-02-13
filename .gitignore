@@ -30,3 +30,6 @@ dist-ssr
 # Electron build output
 dist-electron/
 out/
+
+# Chrome build cache (downloaded during build, not committed)
+.chrome-build/
