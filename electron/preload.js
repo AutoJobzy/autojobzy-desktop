@@ -36,6 +36,9 @@ const electronAPIObject = {
   // Start automation locally
   startAutomation: (config) => ipcRenderer.invoke('start-automation', config),
 
+  // Start recommended jobs automation locally
+  startRecommendedJobsAutomation: (config) => ipcRenderer.invoke('start-recommended-jobs-automation', config),
+
   // Get automation logs
   getAutomationLogs: () => ipcRenderer.invoke('get-automation-logs'),
 
@@ -99,6 +102,22 @@ const electronAPIObject = {
     } else {
       ipcRenderer.removeAllListeners('profile-update-log');
     }
+  },
+
+  // ===== CHROME INSTALLER APIs =====
+  // Get Chrome installation status
+  getChromeStatus: () => ipcRenderer.invoke('get-chrome-status'),
+
+  // Install Chrome manually
+  installChrome: () => ipcRenderer.invoke('install-chrome'),
+
+  // Listen for Chrome installation progress
+  onChromeInstallProgress: (callback) => {
+    const subscription = (event, progress) => callback(progress);
+    ipcRenderer.on('chrome-install-progress', subscription);
+    return () => {
+      ipcRenderer.removeListener('chrome-install-progress', subscription);
+    };
   }
 };
 
@@ -115,6 +134,7 @@ console.log('✅ [Preload] Available methods:', Object.keys({
   platform: true,
   arch: true,
   startAutomation: true,
+  startRecommendedJobsAutomation: true,
   getAutomationLogs: true,
   isAutomationRunning: true,
   stopAutomation: true,

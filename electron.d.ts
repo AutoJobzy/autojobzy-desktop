@@ -33,6 +33,12 @@ interface ElectronAPI {
   stopProfileUpdate: () => Promise<any>;
   onProfileUpdateLog: (callback: (log: any) => void) => any;
   removeProfileUpdateLogListener: (callback?: any) => void;
+
+  // Chrome Installer APIs
+  getChromeStatus: () => Promise<{ installed: boolean; message: string }>;
+  installChrome: () => Promise<{ success: boolean; error?: string; alreadyInstalled?: boolean }>;
+  onChromeInstallProgress: (callback: (progress: { message: string; percent: number }) => void) => () => void;
+  startRecommendedJobsAutomation: (config: any) => Promise<any>;
 }
 
 declare global {

@@ -2,7 +2,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Play, Square, Download, Activity, Save, User, Key, MapPin, Search, Globe, ChevronLeft, ChevronRight, RotateCw, X, UploadCloud, FileText, CheckCircle, Clock, IndianRupee, Calendar, Loader2, AlertCircle, Plus, Trash2, Star, Filter, Building2, Briefcase, GraduationCap, Home, Zap, Crown, Rocket, CreditCard, Check, BarChart3, TrendingUp, TrendingDown, Target, Award, Users, Mail, ThumbsUp, ArrowUpRight, Lightbulb, Eye, EyeOff, ExternalLink, Edit2 } from 'lucide-react';
+import { Play, Square, Download, Activity, Save, User, Key, MapPin, Search, Globe, ChevronLeft, ChevronRight, RotateCw, X, UploadCloud, FileText, CheckCircle, Clock, IndianRupee, Calendar, Loader2, AlertCircle, Plus, Trash2, Star, Filter, Building2, Briefcase, GraduationCap, Home, Zap, Crown, Rocket, CreditCard, Check, BarChart3, TrendingUp, TrendingDown, Target, Award, Users, Mail, ThumbsUp, ArrowUpRight, Lightbulb, Eye, EyeOff, ExternalLink, Edit2, Heart } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import OnboardingFlow from '../components/OnboardingFlow';
@@ -10,7 +10,7 @@ import SuggestAndEarn from '../components/SuggestAndEarn';
 import AppSettings from '../components/AppSettings';
 import UserAnalytics from '../components/UserAnalytics';
 import AutoProfileUpdate from '../components/AutoProfileUpdate';
-import { runBot, stopAutomation, getAutomationLogs, updateJobSettings, getJobSettings, getSkills, saveSkillsBulk, deleteSkill, updateSkill, getAllFilters, getUserFilters, saveUserFilters, runFilter, getFilterLogs, verifyNaukriCredentials, viewResume, downloadResume, deleteResumeFile, uploadResume } from '../services/automationApi';
+import { runBot, runRecommendedJobsBot, stopAutomation, getAutomationLogs, updateJobSettings, getJobSettings, getSkills, saveSkillsBulk, deleteSkill, updateSkill, getAllFilters, getUserFilters, saveUserFilters, runFilter, getFilterLogs, verifyNaukriCredentials, viewResume, downloadResume, deleteResumeFile, uploadResume } from '../services/automationApi';
 import { getSubscriptionStatus, createOrder, initiatePayment } from '../services/subscriptionApi';
 import { getPlans, Plan } from '../services/plansApi';
 
@@ -575,6 +575,82 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Handle recommended jobs automation
+  const handleRecommendedJobs = async () => {
+    setError(null);
+    setSuccess(null);
+    setIsRunning(true);
+    setBotLogs([]);
+
+    try {
+      // Show info message
+      setBotLogs([{
+        timestamp: new Date().toLocaleTimeString(),
+        message: '🚀 Starting Recommended Jobs automation...',
+        type: 'info'
+      }]);
+
+      // Start the recommended jobs bot (non-blocking - runs in background)
+      runRecommendedJobsBot({
+        maxPages: 1,  // Recommended jobs typically on single page
+        searchKeywords: configForm.keywords,
+      }).then((result) => {
+        // Handle completion
+        if (result.logs && result.logs.length > 0) {
+          setBotLogs(result.logs);
+        }
+
+        if (result.success) {
+          setSuccess(`✅ Recommended Jobs automation completed! Applied to ${result.jobsApplied} jobs`);
+        } else {
+          setError(`❌ Recommended Jobs automation error: ${result.error}`);
+        }
+        setIsRunning(false);
+      }).catch((err: any) => {
+        setError(`Failed to run recommended jobs automation: ${err.message}`);
+        setBotLogs(prev => [...prev, {
+          timestamp: new Date().toLocaleTimeString(),
+          message: `❌ Error: ${err.message}`,
+          type: 'error'
+        }]);
+        setIsRunning(false);
+      });
+
+      // Start polling logs immediately (don't wait for completion)
+      if (botPollRef.current) {
+        clearInterval(botPollRef.current);
+      }
+
+      botPollRef.current = setInterval(async () => {
+        try {
+          const logsResult = await getAutomationLogs();
+          if (logsResult.logs && logsResult.logs.length > 0) {
+            setBotLogs(logsResult.logs);
+          }
+
+          // Stop polling if automation is no longer running
+          if (!logsResult.isRunning) {
+            if (botPollRef.current) {
+              clearInterval(botPollRef.current);
+              botPollRef.current = null;
+            }
+          }
+        } catch (err) {
+          // Silent error - polling will retry
+        }
+      }, 2000); // Poll every 2 seconds
+
+    } catch (err: any) {
+      setError(`Failed to start recommended jobs automation: ${err.message}`);
+      setBotLogs(prev => [...prev, {
+        timestamp: new Date().toLocaleTimeString(),
+        message: `❌ Error: ${err.message}`,
+        type: 'error'
+      }]);
+      setIsRunning(false);
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -1013,12 +1089,27 @@ const Dashboard: React.FC = () => {
                 {/* Run Controls - Consistent Theme */}
                 <div className="flex gap-3 mr-2">
                   {!isRunning ? (
-                    <button
-                      onClick={handleStartBot}
-                      className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-neon-blue to-blue-500 text-black text-sm font-bold rounded-lg hover:from-white hover:to-neon-blue transition-all shadow-[0_0_20px_rgba(0,243,255,0.4)] hover:shadow-[0_0_30px_rgba(0,243,255,0.6)]"
-                    >
-                      <Play className="w-4 h-4 fill-current" /> START AUTOMATION
-                    </button>
+                    <>
+                      <button
+                        onClick={handleStartBot}
+                        className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-neon-blue to-blue-500 text-black text-sm font-bold rounded-lg hover:from-white hover:to-neon-blue transition-all shadow-[0_0_20px_rgba(0,243,255,0.4)] hover:shadow-[0_0_30px_rgba(0,243,255,0.6)]"
+                      >
+                        <Play className="w-4 h-4 fill-current" /> START AUTOMATION
+                      </button>
+                      {/* RECOMMENDED JOBS & SHARE INTEREST buttons hidden temporarily */}
+                      {/* <button
+                        onClick={handleRecommendedJobs}
+                        className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-purple-600 to-purple-500 text-white text-sm font-bold rounded-lg hover:from-purple-500 hover:to-purple-400 transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]"
+                      >
+                        <Star className="w-4 h-4" /> RECOMMENDED JOBS
+                      </button>
+                      <button
+                        onClick={() => {}}
+                        className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-green-600 to-green-500 text-white text-sm font-bold rounded-lg hover:from-green-500 hover:to-green-400 transition-all shadow-[0_0_20px_rgba(34,197,94,0.4)] hover:shadow-[0_0_30px_rgba(34,197,94,0.6)]"
+                      >
+                        <Heart className="w-4 h-4" /> SHARE INTEREST
+                      </button> */}
+                    </>
                   ) : (
                     <button
                       onClick={handleStopBot}

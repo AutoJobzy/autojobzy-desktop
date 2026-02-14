@@ -14,8 +14,9 @@ directories:
 files:
   - dist/**/*
   - electron/**/*
+  - server/**/*
   - package.json
-  # DON'T include node_modules or server here - they go in extraResources
+  # DON'T include node_modules here - it goes in extraResources
 
 # ASAR compression for smaller size
 asar: true
@@ -27,16 +28,8 @@ asarUnpack:
   - "**/@puppeteer/**/*"
   - "**/chrome-*/**/*"  # Chrome/Chromium executables
 
-# Extra resources (server + dependencies) - NO DUPLICATION
+# Extra resources (dependencies) - NO DUPLICATION
 extraResources:
-  # Server files
-  - from: server
-    to: server
-    filter:
-      - "**/*"
-      - "!**/*.map"  # Exclude source maps
-      - "!**/*.ts"   # Exclude TypeScript files
-
   # Utils
   - from: utils
     to: utils

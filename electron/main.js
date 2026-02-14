@@ -136,28 +136,40 @@ app.whenReady().then(async () => {
   debugLog('=== Electron App Starting ===');
   console.log('🚀 Electron app starting...');
 
+  // Create window first so we can show progress
+  createWindow();
+
   // ===== AUTO-INSTALL CHROME ON FIRST RUN =====
   console.log('\n🔍 Checking Chrome availability...');
   try {
     // Dynamic import for ES module
-    const { ensureChromeAvailable } = await import('../server/utils/puppeteerHelper.js');
-    const chromeStatus = await ensureChromeAvailable();
+    const { ensureChromeInstalled } = await import('./utils/chromeInstaller.js');
 
-    if (chromeStatus.available) {
-      console.log('✅ Chrome ready for automation');
-      console.log(`📍 Chrome location: ${chromeStatus.executablePath}`);
+    // Progress callback - send updates to renderer
+    const onProgress = (message, percent) => {
+      console.log(`[Chrome Install] ${message} (${percent}%)`);
+      if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('chrome-install-progress', { message, percent });
+      }
+    };
+
+    const chromeStatus = await ensureChromeInstalled(onProgress);
+
+    if (chromeStatus.success) {
+      if (chromeStatus.alreadyInstalled) {
+        console.log('✅ Chrome already installed and ready');
+      } else {
+        console.log('✅ Chrome installed successfully');
+      }
     } else {
-      console.error('⚠️  Chrome not available - automation may fail');
-      console.error('   Install Google Chrome from https://www.google.com/chrome/');
+      console.error('⚠️  Chrome auto-install failed:', chromeStatus.error);
+      console.error('   Please install manually: npx puppeteer browsers install chrome');
     }
   } catch (error) {
     console.error('❌ Chrome check failed:', error.message);
     console.error('   Automation features may not work properly');
   }
   console.log('');
-
-  // Create window first so we can show errors
-  createWindow();
 
   // Log the mode detection
   const devMode = isDev();
@@ -269,9 +281,11 @@ ipcMain.handle('get-server-status', () => {
 let automationRunning = false;
 let currentAutomationLogs = [];
 let runNaukriAutomation = null;
+let runRecommendedJobsAutomation = null;
 let stopAutomationFn = null;
 let automationModuleReady = false;
 let automationModuleError = null;
+let recommendedJobsModuleReady = false;
 
 // Dynamically import automation module (ES module)
 async function loadAutomationModule() {
@@ -293,6 +307,24 @@ async function loadAutomationModule() {
 
     debugLog('✅ Local automation module loaded successfully');
     console.log('✅ Local automation module loaded and ready');
+
+    // Load recommended jobs module
+    try {
+      const recommendedJobsModulePath = path.join(__dirname, 'automation', 'recommendedJobsBot.mjs');
+      const recommendedJobsModuleUrl = `file://${recommendedJobsModulePath.replace(/\\/g, '/')}`;
+
+      debugLog(`Loading recommended jobs module from: ${recommendedJobsModuleUrl}`);
+      const recommendedJobsModule = await import(recommendedJobsModuleUrl);
+
+      runRecommendedJobsAutomation = recommendedJobsModule.runRecommendedJobsAutomation;
+      recommendedJobsModuleReady = true;
+
+      debugLog('✅ Recommended jobs module loaded successfully');
+      console.log('✅ Recommended jobs module loaded and ready');
+    } catch (recError) {
+      console.error('⚠️  Failed to load recommended jobs module:', recError.message);
+      debugLog(`Recommended jobs module error: ${recError.stack}`);
+    }
 
     // Notify renderer that module is ready
     if (mainWindow && mainWindow.webContents) {
@@ -337,6 +369,41 @@ ipcMain.handle('is-automation-module-ready', () => {
 ipcMain.handle('retry-load-automation-module', async () => {
   console.log('🔄 Retrying automation module load...');
   return await loadAutomationModule();
+});
+
+// ===== CHROME INSTALLER IPC HANDLERS =====
+// Get Chrome installation status
+ipcMain.handle('get-chrome-status', async () => {
+  try {
+    const { getChromeStatus } = await import('./utils/chromeInstaller.js');
+    return getChromeStatus();
+  } catch (error) {
+    return {
+      installed: false,
+      message: 'Error checking Chrome status: ' + error.message
+    };
+  }
+});
+
+// Manually trigger Chrome installation
+ipcMain.handle('install-chrome', async () => {
+  try {
+    const { ensureChromeInstalled } = await import('./utils/chromeInstaller.js');
+
+    const onProgress = (message, percent) => {
+      console.log(`[Chrome Install] ${message} (${percent}%)`);
+      if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('chrome-install-progress', { message, percent });
+      }
+    };
+
+    return await ensureChromeInstalled(onProgress);
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 });
 
 // Start automation locally
@@ -480,6 +547,136 @@ ipcMain.handle('start-automation', async (event, config) => {
 
   } catch (error) {
     console.error('Automation error:', error);
+    automationRunning = false;
+    return {
+      success: false,
+      error: error.message,
+      logs: currentAutomationLogs
+    };
+  }
+});
+
+// Start recommended jobs automation locally
+ipcMain.handle('start-recommended-jobs-automation', async (event, config) => {
+  if (!runRecommendedJobsAutomation || !recommendedJobsModuleReady) {
+    return {
+      success: false,
+      error: 'Recommended jobs module not loaded yet. Please try again in a few seconds.',
+      needsRetry: !recommendedJobsModuleReady
+    };
+  }
+
+  if (automationRunning) {
+    return {
+      success: false,
+      error: 'Automation already running'
+    };
+  }
+
+  automationRunning = true;
+  currentAutomationLogs = [];
+
+  try {
+    console.log('🖥️  Starting RECOMMENDED JOBS automation with config:', config);
+
+    // Fetch user settings from AWS backend (for credentials only)
+    const API_BASE_URL = 'https://api.autojobzy.com/api';
+    const token = config.token;
+
+    if (!token) {
+      throw new Error('No authentication token provided');
+    }
+
+    // Fetch Naukri credentials from AWS backend
+    const fetch = (await import('node-fetch')).default;
+
+    // Fetch job settings for credentials
+    const settingsResponse = await fetch(`${API_BASE_URL}/job-settings`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!settingsResponse.ok) {
+      throw new Error('Failed to fetch job settings from server');
+    }
+
+    const settings = await settingsResponse.json();
+
+    if (!settings.naukriEmail || !settings.naukriPassword) {
+      throw new Error('Naukri credentials not found. Please add them in Job Profile settings.');
+    }
+
+    // ✅ FETCH SKILLS FROM DATABASE
+    console.log('📡 Fetching skills from database...');
+    const skillsResponse = await fetch(`${API_BASE_URL}/job-settings/answers-data`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    let skills = [];
+    if (skillsResponse.ok) {
+      const answersData = await skillsResponse.json();
+      skills = answersData.skills || [];
+      console.log(`✅ Loaded ${skills.length} skills from database`);
+    } else {
+      console.log('⚠️  Failed to fetch skills');
+    }
+
+    // Add skills to settings
+    settings.skills = skills;
+
+    // Run recommended jobs automation locally with visible browser
+    const result = await runRecommendedJobsAutomation({
+      naukriEmail: settings.naukriEmail,
+      naukriPassword: settings.naukriPassword,
+      searchKeywords: config.searchKeywords || settings.searchKeywords || 'Software Engineer',
+      maxPages: config.maxPages || 1,
+      userSettings: settings
+    }, (log) => {
+      // Collect logs from automation
+      currentAutomationLogs.push(log);
+    });
+
+    // ✅ Save job results to database
+    if (result.jobResults && result.jobResults.length > 0) {
+      console.log(`💾 Saving ${result.jobResults.length} job results to database...`);
+      try {
+        const saveResponse = await fetch(`${API_BASE_URL}/automation/save-job-results`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            jobResults: result.jobResults,
+            userId: config.userId
+          })
+        });
+
+        if (saveResponse.ok) {
+          console.log('✅ Job results saved to database successfully');
+          result.savedToDatabase = true;
+        } else {
+          const errorText = await saveResponse.text();
+          console.error('❌ Failed to save to database:', errorText);
+          result.savedToDatabase = false;
+        }
+      } catch (saveError) {
+        console.error('❌ Error saving to database:', saveError.message);
+        result.savedToDatabase = false;
+        result.saveError = saveError.message;
+      }
+    } else {
+      console.log('ℹ️ No job results to save to database');
+    }
+
+    automationRunning = false;
+    return result;
+
+  } catch (error) {
+    console.error('Recommended jobs automation error:', error);
     automationRunning = false;
     return {
       success: false,
