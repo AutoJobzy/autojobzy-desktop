@@ -155,34 +155,6 @@ export async function runBot(options = {}) {
     }
 }
 
-/**
- * Run Recommended Jobs automation
- * Navigates to https://www.naukri.com/mnjuser/recommendedjobs
- * Applies to all recommended jobs with same answer management
- * @param {Object} [options] - Configuration (optional)
- * @param {number} [options.maxPages] - Max pages to process (default 1)
- */
-export async function runRecommendedJobsBot(options = {}) {
-    if (isElectron()) {
-        // Run recommended jobs automation LOCALLY in Electron
-        console.log('🖥️  Running Recommended Jobs automation LOCALLY in Electron');
-
-        const token = getToken();
-        const userId = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).id : null;
-
-        const result = await window.electronAPI.startRecommendedJobsAutomation({
-            ...options,
-            token,
-            userId
-        });
-
-        return result;
-    } else {
-        // Fallback to remote AWS server (for web version)
-        console.log('☁️  Running Recommended Jobs automation on AWS server');
-        return apiCall('/automation/run-recommended-jobs', 'POST', options);
-    }
-}
 
 /**
  * Stop currently running automation

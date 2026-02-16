@@ -4,9 +4,14 @@
  * Windows मध्ये backend files packaged आहेत का verify करण्यासाठी
  */
 
-const fs = require('fs');
-const path = require('path');
-const { app } = require('electron');
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { app } from 'electron';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function isDev() {
   return !app.isPackaged;
@@ -176,7 +181,7 @@ function verifyPackage() {
 
   // Write results to file
   const logPath = path.join(
-    require('os').tmpdir(),
+    os.tmpdir(),
     'autojobzy-package-verification.json'
   );
   try {
@@ -194,4 +199,4 @@ function verifyPackage() {
   };
 }
 
-module.exports = { verifyPackage };
+export { verifyPackage };

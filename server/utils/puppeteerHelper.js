@@ -1,8 +1,8 @@
 /**
- * ======================== PUPPETEER HELPER ========================
- * Shared utility for launching Puppeteer with Chrome detection
- * Handles Chrome installation and fallback to system Chrome
- * ==================================================================
+ * ======================== PRODUCTION-SAFE PUPPETEER HELPER ========================
+ * Bundled Chrome detection for Electron production builds
+ * NO system Chrome fallback, NO runtime installs
+ * ==================================================================================
  */
 
 import puppeteer from 'puppeteer';
@@ -19,52 +19,74 @@ let chromeAvailable = false;
 let chromeExecutablePath = null;
 
 /**
- * Find system Chrome executable
+ * Find bundled Chrome in production app (extraResources)
+ * Production - AutoJobzy/resources/.puppeteer-browsers/chrome/win64-star/chrome.exe
+ * Dev - Uses Puppeteer default Chrome location
  */
-function findSystemChrome() {
+function findBundledChrome() {
     const platform = process.platform;
-    const possiblePaths = [];
+    const isPackaged = process.resourcesPath && !process.resourcesPath.includes('node_modules');
 
-    if (platform === 'win32') {
-        possiblePaths.push(
-            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-            'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-            path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe'),
-            path.join(process.env.PROGRAMFILES || '', 'Google\\Chrome\\Application\\chrome.exe')
-        );
-    } else if (platform === 'darwin') {
-        possiblePaths.push(
-            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            path.join(process.env.HOME || '', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
-        );
-    } else if (platform === 'linux') {
-        possiblePaths.push(
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/google-chrome',
-            '/usr/bin/chromium-browser',
-            '/usr/bin/chromium',
-            '/snap/bin/chromium'
-        );
-    }
+    if (isPackaged) {
+        // PRODUCTION: Check bundled Chrome in resources
+        console.log('[PUPPETEER] Running in PRODUCTION mode');
+        const resourcesPath = process.resourcesPath;
+        const chromeBrowsersPath = path.join(resourcesPath, '.puppeteer-browsers', 'chrome');
 
-    for (const chromePath of possiblePaths) {
-        if (fs.existsSync(chromePath)) {
-            console.log('[PUPPETEER] ✓ Found system Chrome at:', chromePath);
-            return chromePath;
+        console.log('[PUPPETEER] Searching for bundled Chrome in:', chromeBrowsersPath);
+
+        if (fs.existsSync(chromeBrowsersPath)) {
+            try {
+                // Find Chrome version directory (win64-*, mac-*, linux-*)
+                const versionDirs = fs.readdirSync(chromeBrowsersPath).filter(dir => {
+                    return dir.startsWith('win64-') || dir.startsWith('mac-') || dir.startsWith('linux-');
+                });
+
+                if (versionDirs.length > 0) {
+                    const latestVersion = versionDirs.sort().pop();
+                    let chromePath;
+
+                    if (platform === 'win32') {
+                        chromePath = path.join(chromeBrowsersPath, latestVersion, 'chrome-win64', 'chrome.exe');
+                    } else if (platform === 'darwin') {
+                        chromePath = path.join(chromeBrowsersPath, latestVersion, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium');
+                    } else {
+                        chromePath = path.join(chromeBrowsersPath, latestVersion, 'chrome-linux', 'chrome');
+                    }
+
+                    if (fs.existsSync(chromePath)) {
+                        console.log('[PUPPETEER] ✓ Found bundled Chrome:', chromePath);
+                        return chromePath;
+                    }
+                }
+            } catch (error) {
+                console.error('[PUPPETEER] Error searching for Chrome:', error.message);
+            }
         }
+
+        console.error('[PUPPETEER] ✗ Bundled Chrome not found in:', resourcesPath);
+        console.error('[PUPPETEER] Build must include Chrome. Run: npx puppeteer browsers install chrome');
+        return null;
     }
 
+    // DEV: Let Puppeteer use its default Chrome
+    console.log('[PUPPETEER] Running in DEV mode');
     return null;
 }
 
 /**
- * Check if Puppeteer's Chrome is installed
+ * Check Puppeteer's default Chrome (dev mode only)
  */
 async function checkPuppeteerChrome() {
     try {
         const executablePath = puppeteer.executablePath();
         if (executablePath && fs.existsSync(executablePath)) {
-            console.log('[PUPPETEER] ✓ Puppeteer Chrome found at:', executablePath);
+            // REJECT Program Files Chrome on Windows (permission issues)
+            if (process.platform === 'win32' && executablePath.includes('Program Files')) {
+                console.log('[PUPPETEER] ⚠️ Found Program Files Chrome (permission issues) - rejecting');
+                return null;
+            }
+            console.log('[PUPPETEER] ✓ Puppeteer Chrome:', executablePath);
             return executablePath;
         }
     } catch (error) {
@@ -74,9 +96,16 @@ async function checkPuppeteerChrome() {
 }
 
 /**
- * Try to install Puppeteer Chrome
+ * Try to install Puppeteer Chrome (dev mode only)
  */
 async function installPuppeteerChrome() {
+    // Skip auto-install in production
+    const isPackaged = process.resourcesPath && !process.resourcesPath.includes('node_modules');
+    if (isPackaged) {
+        console.log('[PUPPETEER] Skipping auto-install in production mode');
+        return null;
+    }
+
     try {
         console.log('[PUPPETEER] Attempting to install Chrome...');
         console.log('[PUPPETEER] This may take 1-2 minutes...');
@@ -101,31 +130,28 @@ async function installPuppeteerChrome() {
 }
 
 /**
- * Ensure Chrome is available (check once per session)
- * ✅ AUTO-INSTALLS Chrome on first run if missing
- * Call this on app startup BEFORE any Puppeteer usage
- * @returns {Promise<{available: boolean, executablePath: string|null}>}
+ * Ensure Chrome is available (bundled in production, installed in dev)
+ * NO system Chrome fallback
  */
 export async function ensureChromeAvailable() {
     if (chromeCheckCompleted) {
         return { available: chromeAvailable, executablePath: chromeExecutablePath };
     }
 
-    console.log('[PUPPETEER] Checking for Chrome installation...');
+    console.log('[PUPPETEER] Checking for Chrome...');
 
-    // 1. Check if Puppeteer's Chrome is installed
-    let execPath = await checkPuppeteerChrome();
+    // 1. Check bundled Chrome (production) or Puppeteer Chrome (dev)
+    let execPath = findBundledChrome();
 
-    // 2. If not, try to install it
+    // 2. If dev mode and not found, check Puppeteer's default location
     if (!execPath) {
-        console.log('[PUPPETEER] Puppeteer Chrome not found, trying to install...');
-        execPath = await installPuppeteerChrome();
+        execPath = await checkPuppeteerChrome();
     }
 
-    // 3. If installation failed, try to use system Chrome
+    // 3. If dev mode and still not found, try to auto-install
     if (!execPath) {
-        console.log('[PUPPETEER] Installation failed, looking for system Chrome...');
-        execPath = findSystemChrome();
+        console.log('[PUPPETEER] Chrome not found, trying to install...');
+        execPath = await installPuppeteerChrome();
     }
 
     chromeCheckCompleted = true;
@@ -133,51 +159,55 @@ export async function ensureChromeAvailable() {
     chromeExecutablePath = execPath;
 
     if (chromeAvailable) {
-        console.log('[PUPPETEER] ✓ Chrome is available');
+        console.log('[PUPPETEER] ✓ Chrome ready');
     } else {
-        console.error('[PUPPETEER] ✗ Chrome not found on system');
+        console.error('[PUPPETEER] ✗ Chrome not found - app cannot run automation');
     }
 
     return { available: chromeAvailable, executablePath: chromeExecutablePath };
 }
 
 /**
- * Launch browser with automatic Chrome detection and fallback
- * @param {Object} options - Additional Puppeteer launch options
- * @returns {Promise<Browser>}
+ * Launch browser with production-safe config
  */
 export async function launchBrowser(options = {}) {
-    // Ensure Chrome is available
     const { available, executablePath } = await ensureChromeAvailable();
 
     if (!available) {
-        throw new Error(
-            'Chrome browser not found. Please install Google Chrome from https://www.google.com/chrome/ and restart the application.'
-        );
+        const isPackaged = process.resourcesPath && !process.resourcesPath.includes('node_modules');
+        let errorMessage = 'Chrome browser not found.\n\n';
+
+        if (isPackaged) {
+            // Production error
+            errorMessage += 'This app requires Chrome to be bundled at build time.\n';
+            errorMessage += 'Please contact the developer.';
+        } else {
+            // Dev error
+            errorMessage += 'For developers: Run "npx puppeteer browsers install chrome" before starting the app.';
+        }
+
+        throw new Error(errorMessage);
     }
 
-    // Default browser configuration
+    // Production-safe browser config (Windows-optimized)
     const browserConfig = {
         headless: 'new',
+        executablePath, // Use bundled or dev Chrome
         args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-web-security',
+            '--no-sandbox',                                    // Required for Windows
+            '--disable-setuid-sandbox',                        // Permission bypass
+            '--disable-dev-shm-usage',                         // Avoid /dev/shm issues
+            '--disable-gpu',                                   // Windows stability
+            '--disable-web-security',                          // Avoid CORS in automation
             '--disable-features=IsolateOrigins,site-per-process',
-            '--disable-blink-features=AutomationControlled',
-            '--disable-gpu',
+            '--disable-blink-features=AutomationControlled',  // Hide automation
             '--window-size=1920,1080',
         ],
         defaultViewport: null,
-        timeout: 60000, // 60 second timeout for launch
-        ...options
+        timeout: 60000,
+        ignoreHTTPSErrors: true,
+        ...options // Allow overrides
     };
-
-    // Use found Chrome executable
-    if (executablePath) {
-        browserConfig.executablePath = executablePath;
-    }
 
     console.log('[PUPPETEER] Launching browser...');
 
@@ -186,7 +216,7 @@ export async function launchBrowser(options = {}) {
         console.log('[PUPPETEER] ✓ Browser launched successfully');
         return browser;
     } catch (error) {
-        console.error('[PUPPETEER] Failed to launch browser:', error.message);
+        console.error('[PUPPETEER] Launch failed:', error.message);
         throw new Error(`Failed to launch Chrome: ${error.message}`);
     }
 }

@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import ChromeInstallProgress from './components/ChromeInstallProgress';
 import Auth from './pages/Auth';
 import Plans from './pages/Plans';
 import ProfileSetup from './pages/ProfileSetup';
@@ -60,29 +59,9 @@ const AppContent: React.FC = () => {
   const { user, logout } = useApp();
   const location = useLocation();
   const previousPath = useRef<string | null>(null);
-  const [showChromeInstall, setShowChromeInstall] = useState(false);
 
   // Check if running in Electron
   const isElectron = window.electron && window.electron.isElectron;
-
-  // Listen for Chrome installation progress (Electron only)
-  useEffect(() => {
-    if (!isElectron || !window.electronAPI) return;
-
-    // Listen for Chrome install progress events
-    const cleanup = window.electronAPI.onChromeInstallProgress((progress: { message: string; percent: number }) => {
-      // Show modal when Chrome installation starts
-      if (progress.percent > 0 && progress.percent < 100) {
-        setShowChromeInstall(true);
-      }
-      // Hide modal when installation completes
-      if (progress.percent === 100) {
-        setTimeout(() => setShowChromeInstall(false), 2000);
-      }
-    });
-
-    return cleanup;
-  }, [isElectron]);
 
   // Define protected and public routes
   const protectedRoutes = ['/dashboard', '/plans', '/setup', '/history', '/institute-admin'];
@@ -177,14 +156,6 @@ const AppContent: React.FC = () => {
         </Routes>
       </main>
       {!user.isLoggedIn && !isAdminRoute && !isElectron && <Footer />}
-
-      {/* Chrome Installation Progress Modal (Electron only) */}
-      {isElectron && (
-        <ChromeInstallProgress
-          isOpen={showChromeInstall}
-          onClose={() => setShowChromeInstall(false)}
-        />
-      )}
     </div>
   );
 };

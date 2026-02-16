@@ -16,7 +16,6 @@ files:
   - electron/**/*
   - server/**/*
   - package.json
-  # DON'T include node_modules here - it goes in extraResources
 
 # ASAR compression for smaller size
 asar: true
@@ -76,17 +75,10 @@ extraResources:
       - "!**/*.map"
       - "!**/.bin/**"
 
-  # Puppeteer Chromium (multiple possible locations for different versions)
-  - from: node_modules/puppeteer/.local-chromium
-    to: .local-chromium
-    filter:
-      - "**/*"
-  - from: node_modules/puppeteer/.cache
-    to: .puppeteer-cache
-    filter:
-      - "**/*"
-  - from: node_modules/@puppeteer
-    to: .puppeteer-browsers
+  # Puppeteer Chrome (bundled for production)
+  # Chrome will be downloaded here by scripts/prepare-chrome.js during prebuild
+  - from: .chrome-build/chrome
+    to: .puppeteer-browsers/chrome
     filter:
       - "**/*"
 
@@ -131,6 +123,8 @@ nsis:
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
   differentialPackage: false
+  perMachine: false
+  include: build/installer.nsh
 
 # Publish configuration (optional)
 publish: null
