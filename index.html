@@ -39,51 +39,10 @@
     <meta name="theme-color" content="#00f3ff" />
     <meta name="format-detection" content="telephone=no" />
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              heading: ['Poppins', 'sans-serif'],
-              mono: ['Fira Code', 'monospace'],
-            },
-            colors: {
-              neon: {
-                blue: '#00f3ff',
-                purple: '#bc13fe',
-                green: '#0aff68',
-              },
-              dark: {
-                900: '#020617', // Slate 950 base
-                800: '#0f172a',
-                700: '#1e293b',
-              }
-            },
-            animation: {
-              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'float': 'float 6s ease-in-out infinite',
-              'glow': 'glow 2s ease-in-out infinite alternate',
-            },
-            keyframes: {
-              float: {
-                '0%, 100%': { transform: 'translateY(0)' },
-                '50%': { transform: 'translateY(-20px)' },
-              },
-              glow: {
-                'from': { boxShadow: '0 0 10px #00f3ff, 0 0 20px #00f3ff' },
-                'to': { boxShadow: '0 0 20px #00f3ff, 0 0 30px #00f3ff' },
-              }
-            }
-          },
-        },
-      }
-    </script>
     <style>
       /* Minimal inline styles - main theme handled by index.css */
       * {

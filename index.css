@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ========================================
    GLOBAL THEME SYSTEM - Light/Dark Mode
    ======================================== */
