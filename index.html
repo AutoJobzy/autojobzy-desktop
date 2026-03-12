@@ -39,10 +39,7 @@
     <meta name="theme-color" content="#00f3ff" />
     <meta name="format-detection" content="telephone=no" />
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@400;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Fonts: loaded locally via CSS @font-face — no external network requests -->
     <style>
       /* Minimal inline styles - main theme handled by index.css */
       * {
@@ -124,7 +121,29 @@
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Shown while React/Vite is loading — replaced by React on mount -->
+      <div style="
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        height:100vh;
+        background:#0a0a0f;
+        gap:20px;
+      ">
+        <div style="
+          width:48px;
+          height:48px;
+          border:3px solid #1a1a2e;
+          border-top-color:#00f3ff;
+          border-radius:50%;
+          animation:spin 0.8s linear infinite;
+        "></div>
+        <span style="color:#444;font-family:monospace;font-size:13px;letter-spacing:2px;">LOADING...</span>
+      </div>
+      <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+    </div>
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>

@@ -4,8 +4,8 @@
  * Calls backend API which executes Puppeteer script
  */
 
-import React, { useState, useEffect } from 'react';
-import { RefreshCw, CheckCircle, XCircle, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { RefreshCw, CheckCircle, XCircle, Clock, AlertCircle, Loader2, Play, Square } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // API Base URL - defaults to localhost for desktop app
@@ -26,32 +26,31 @@ const AutoProfileUpdate: React.FC = () => {
     executedAt: null
   });
   const [isUpdating, setIsUpdating] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
+  const logContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [logs]);
 
   // Fetch last update status on component mount
   useEffect(() => {
     fetchLastUpdateStatus();
   }, []);
 
-  /**
-   * Fetch last update status from backend
-   */
   const fetchLastUpdateStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        toast.error('Please login again');
-        return;
-      }
+      if (!token) return;
 
       const response = await fetch(`${API_BASE_URL}/profile-update/status`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
       const data = await response.json();
-
       if (data.success && data.lastUpdate) {
         setUpdateStatus(prev => ({
           ...prev,
@@ -64,11 +63,7 @@ const AutoProfileUpdate: React.FC = () => {
     }
   };
 
-  /**
-   * Handle Update Profile button click
-   */
   const handleUpdateProfile = async () => {
-    // Reset state
     setIsUpdating(true);
     setLogs([]);
     setUpdateStatus({
@@ -78,32 +73,46 @@ const AutoProfileUpdate: React.FC = () => {
       executedAt: null
     });
 
+    const addLog = (message: string, type: string = 'info') => {
+      setLogs(prev => [...prev, {
+        timestamp: new Date().toLocaleTimeString(),
+        message,
+        type,
+      }]);
+    };
+
+    addLog('🚀 Bhai, Circuit profile update karne ki taiyari kar raha hai — ekdum solid plan hai!', 'info');
+
     const loadingToast = toast.loading('Updating your Naukri profile...');
 
     try {
       const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication required. Please login again.');
-      }
+      if (!token) throw new Error('Authentication required. Please login again.');
 
-      // ✅ Check if running in Electron
-      const isElectron = window.electron && window.electron.isElectron;
+      const isElectron = (window as any).electron && (window as any).electron.isElectron;
 
       let data;
 
       if (isElectron) {
-        // ✅ Run LOCAL profile update via IPC
-        console.log('🖥️  Running profile update locally in Electron');
+        addLog('🖥️  Bhai, local Electron mein chal raha hai... apun ka apna jugaad!', 'info');
 
-        // Listen for real-time logs
-        window.electron.onProfileUpdateLog?.((log: any) => {
-          setLogs(prev => [...prev, log.message]);
+        // Remove any stale listeners before adding a new one
+        (window as any).electron.removeProfileUpdateLogListener?.();
+
+        const logSub = (window as any).electron.onProfileUpdateLog?.((log: any) => {
+          setLogs(prev => [...prev, {
+            timestamp: log.timestamp || new Date().toLocaleTimeString(),
+            message: log.message,
+            type: log.type || 'info',
+          }]);
         });
 
-        data = await window.electron.startProfileUpdate({ token });
+        data = await (window as any).electron.startProfileUpdate({ token });
+
+        // Clean up listener after done
+        if (logSub) (window as any).electron.removeProfileUpdateLogListener?.(logSub);
       } else {
-        // ✅ Run REMOTE profile update via API
-        console.log('🌐 Running profile update via API');
+        addLog('🌐 Bhai, API se chal raha hai... remote wala scene!', 'info');
 
         const response = await fetch(`${API_BASE_URL}/profile-update/naukri/update-resume`, {
           method: 'POST',
@@ -118,6 +127,7 @@ const AutoProfileUpdate: React.FC = () => {
 
       if (data.success) {
         toast.success('Profile updated successfully!', { id: loadingToast });
+        addLog('✅ Bhai, profile ekdum mast update ho gaya! Jaadoo ki jhappi Naukri ko!', 'success');
         setUpdateStatus({
           status: 'success',
           message: data.message || 'Resume headline updated successfully',
@@ -125,12 +135,13 @@ const AutoProfileUpdate: React.FC = () => {
           executedAt: data.executedAt || new Date().toISOString()
         });
 
-        // Update logs if provided
         if (data.logs && Array.isArray(data.logs)) {
-          setLogs(data.logs.map((l: any) => typeof l === 'string' ? l : l.message));
+          data.logs.forEach((l: any) => {
+            const msg = typeof l === 'string' ? l : l.message;
+            if (msg) addLog(msg, l.type || 'info');
+          });
         }
 
-        // Refresh last update status
         fetchLastUpdateStatus();
       } else {
         throw new Error(data.error || data.message || 'Profile update failed');
@@ -138,7 +149,7 @@ const AutoProfileUpdate: React.FC = () => {
     } catch (error: any) {
       console.error('Profile update error:', error);
       toast.error(error.message || 'Failed to update profile', { id: loadingToast });
-
+      addLog(`❌ Aye bhai, bada scene ho gaya: ${error.message} — tension nahi, phir try karte hai!`, 'error');
       setUpdateStatus({
         status: 'failed',
         message: error.message || 'Profile update failed',
@@ -150,187 +161,158 @@ const AutoProfileUpdate: React.FC = () => {
     }
   };
 
-  /**
-   * Format date for display
-   */
+  const handleStopUpdate = async () => {
+    const electronAPI = (window as any).electronAPI || (window as any).electron;
+    if (electronAPI?.stopProfileUpdate) {
+      await electronAPI.stopProfileUpdate().catch(() => {});
+    }
+    setIsUpdating(false);
+    setUpdateStatus(prev => ({ ...prev, status: 'idle', message: 'Stopped by user' }));
+    setLogs(prev => [...prev, {
+      timestamp: new Date().toLocaleTimeString(),
+      message: '🛑 Profile update stopped by user.',
+      type: 'warning',
+    }]);
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never';
-
     const date = new Date(dateString);
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
+    const diffMins = Math.floor((now.getTime() - date.getTime()) / 60000);
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
-
     if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  /**
-   * Get status icon based on current status
-   */
-  const getStatusIcon = () => {
-    switch (updateStatus.status) {
-      case 'running':
-        return <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />;
-      case 'success':
-        return <CheckCircle className="w-6 h-6 text-green-500" />;
-      case 'failed':
-        return <XCircle className="w-6 h-6 text-red-500" />;
-      default:
-        return <Clock className="w-6 h-6 text-gray-400" />;
-    }
-  };
-
-  /**
-   * Get status color classes
-   */
-  const getStatusColor = () => {
-    switch (updateStatus.status) {
-      case 'running':
-        return 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800';
-      case 'success':
-        return 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800';
-      case 'failed':
-        return 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
-      default:
-        return 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700';
-    }
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="bg-white dark:bg-dark-800 rounded-xl p-6 border border-gray-200 dark:border-white/10 shadow-sm">
-        <div className="flex items-center gap-3 mb-2">
-          <RefreshCw className="w-7 h-7 text-neon-blue" />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Auto Profile Update
-          </h2>
-        </div>
-        <p className="text-gray-600 dark:text-gray-400">
-          Keep your Naukri profile active by refreshing your resume headline. This increases your profile visibility and helps you appear in more recruiter searches.
-        </p>
-      </div>
-
-      {/* Status Card */}
-      <div className={`rounded-xl p-6 border-2 ${getStatusColor()} transition-all duration-300`}>
+    <div className="flex flex-col gap-6">
+      {/* Info card */}
+      <div className="bg-gradient-to-br from-gray-900 to-black border border-purple-500/20 rounded-2xl p-6 shadow-[0_0_30px_rgba(168,85,247,0.05)]">
         <div className="flex items-start gap-4">
-          <div className="flex-shrink-0 mt-1">
-            {getStatusIcon()}
+          <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0">
+            <RefreshCw className="w-6 h-6 text-purple-400" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-              {updateStatus.status === 'idle' && 'Ready to Update'}
-              {updateStatus.status === 'running' && 'Update in Progress'}
-              {updateStatus.status === 'success' && 'Update Successful'}
-              {updateStatus.status === 'failed' && 'Update Failed'}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              {updateStatus.message || 'Click the button below to update your Naukri profile'}
+            <h3 className="text-lg font-bold text-white mb-1">Naukri Auto Profile Update</h3>
+            <p className="text-sm text-gray-400">
+              Keeps your Naukri profile active by refreshing your resume headline.
+              The bot logs in with your saved credentials and adds an invisible change to your headline,
+              making your profile appear recently updated and boosting recruiter visibility.
             </p>
-
-            {/* Last Update Info */}
-            <div className="flex flex-wrap gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-600 dark:text-gray-400">
-                  <strong>Last updated:</strong> {formatDate(updateStatus.lastUpdate)}
-                </span>
-              </div>
-            </div>
           </div>
         </div>
-      </div>
 
-      {/* Update Button */}
-      <div className="bg-white dark:bg-dark-800 rounded-xl p-6 border border-gray-200 dark:border-white/10 shadow-sm">
-        <button
-          onClick={handleUpdateProfile}
-          disabled={isUpdating}
-          className={`w-full flex items-center justify-center gap-3 px-6 py-4 rounded-lg font-semibold text-lg transition-all duration-300 ${isUpdating
-            ? 'bg-gray-400 cursor-not-allowed text-gray-700'
-            : 'bg-gradient-to-r from-neon-blue to-blue-500 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02]'
-            }`}
-        >
-          {isUpdating ? (
-            <>
-              <Loader2 className="w-6 h-6 animate-spin" />
-              Updating Profile...
-            </>
-          ) : (
-            <>
-              <RefreshCw className="w-6 h-6" />
-              Update Profile Now
-            </>
-          )}
-        </button>
-
-        <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
-          This will append a space to your resume headline, making your profile appear recently updated
-        </p>
-      </div>
-
-      {/* How It Works */}
-      <div className="bg-white dark:bg-dark-800 rounded-xl p-6 border border-gray-200 dark:border-white/10 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <AlertCircle className="w-5 h-5 text-neon-blue" />
-          <h3 className="font-semibold text-gray-900 dark:text-white">
-            How It Works
-          </h3>
-        </div>
-
-        <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
-          <div className="flex gap-3">
-            <span className="font-semibold text-neon-blue flex-shrink-0">1.</span>
-            <p>Connects to your Naukri account using your saved credentials</p>
+        {/* How It Works */}
+        <div className="mt-5 pt-4 border-t border-gray-800">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertCircle className="w-4 h-4 text-purple-400" />
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">How It Works</span>
           </div>
-          <div className="flex gap-3">
-            <span className="font-semibold text-neon-blue flex-shrink-0">2.</span>
-            <p>Opens your profile page and edits the resume headline</p>
-          </div>
-          <div className="flex gap-3">
-            <span className="font-semibold text-neon-blue flex-shrink-0">3.</span>
-            <p>Adds a space to your headline (invisible change)</p>
-          </div>
-          <div className="flex gap-3">
-            <span className="font-semibold text-neon-blue flex-shrink-0">4.</span>
-            <p>Saves the change, making your profile appear "recently updated"</p>
-          </div>
-          <div className="flex gap-3">
-            <span className="font-semibold text-neon-blue flex-shrink-0">5.</span>
-            <p>This increases your visibility in recruiter searches</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Logs (only show if there are logs) */}
-      {logs.length > 0 && (
-        <div className="bg-black rounded-xl p-6 border border-gray-700 shadow-sm">
-          <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            Update Logs
-          </h3>
-          <div className="bg-gray-900 rounded-lg p-4 font-mono text-xs text-green-400 max-h-64 overflow-y-auto">
-            {logs.map((log, index) => (
-              <div key={index} className="py-1">
-                {log}
+          <div className="grid grid-cols-1 gap-2 text-sm text-gray-500">
+            {[
+              'Logs in using your saved Naukri credentials',
+              'Opens your profile and edits the resume headline',
+              'Appends an invisible space (no visible change)',
+              'Saves — making your profile appear "recently updated"',
+              'Boosts visibility in recruiter searches',
+            ].map((step, i) => (
+              <div key={i} className="flex gap-3">
+                <span className="text-purple-500 font-bold flex-shrink-0">{i + 1}.</span>
+                <span>{step}</span>
               </div>
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Status bar */}
+      {updateStatus.lastUpdate && (
+        <div className="flex items-center gap-3 text-sm text-gray-500 font-mono">
+          <Clock className="w-4 h-4 text-gray-600" />
+          Last updated: <span className="text-gray-400">{formatDate(updateStatus.lastUpdate)}</span>
+          {updateStatus.status === 'success' && <CheckCircle className="w-4 h-4 text-green-400 ml-1" />}
+          {updateStatus.status === 'failed' && <XCircle className="w-4 h-4 text-red-400 ml-1" />}
+        </div>
       )}
+
+      {/* Controls */}
+      <div className="flex items-center gap-4">
+        {!isUpdating ? (
+          <button
+            onClick={handleUpdateProfile}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-violet-500 text-white text-sm font-bold rounded-xl hover:from-purple-400 hover:to-violet-400 transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]"
+          >
+            <Play className="w-4 h-4 fill-current" /> Update Profile Now
+          </button>
+        ) : (
+          <button
+            onClick={handleStopUpdate}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-red-500 text-white text-sm font-bold rounded-xl hover:from-red-500 hover:to-red-400 transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+          >
+            <Square className="w-4 h-4 fill-current" /> Stop
+          </button>
+        )}
+        {isUpdating && (
+          <div className="flex items-center gap-2 text-purple-400 text-sm font-mono">
+            <Loader2 className="w-4 h-4 animate-spin" /> Running...
+          </div>
+        )}
+        {updateStatus.status === 'success' && !isUpdating && (
+          <div className="flex items-center gap-2 text-green-400 text-sm font-mono">
+            <CheckCircle className="w-4 h-4" /> Update successful
+          </div>
+        )}
+        {updateStatus.message === 'Stopped by user' && !isUpdating && (
+          <div className="flex items-center gap-2 text-red-400 text-sm font-mono">
+            <Square className="w-4 h-4 fill-current" /> Stopped
+          </div>
+        )}
+      </div>
+
+      {/* Log terminal */}
+      <div className="bg-black rounded-2xl border border-gray-800 overflow-hidden">
+        <div className="px-6 py-2 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700 flex justify-between items-center">
+          <span className="text-xs text-gray-400 font-mono uppercase tracking-wider flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isUpdating ? 'bg-purple-400 animate-pulse' : 'bg-gray-600'}`}></div>
+            Profile Update Logs {logs.length > 0 && `(${logs.length})`}
+          </span>
+          <span className="text-xs text-gray-600 font-mono">profileUpdateBot.mjs</span>
+        </div>
+        <div
+          ref={logContainerRef}
+          className="h-72 overflow-y-auto p-6 font-mono text-sm space-y-2 bg-black text-gray-300"
+        >
+          {logs.length === 0 && (
+            <div className="text-gray-600 italic">
+              Click 'Update Profile Now' to begin.
+            </div>
+          )}
+          {logs.map((log, idx) => (
+            <div
+              key={idx}
+              className={`${
+                log.type === 'error' ? 'text-red-400' :
+                log.type === 'success' ? 'text-green-400' :
+                log.type === 'warning' ? 'text-yellow-400' :
+                'text-gray-300'
+              } break-words font-mono leading-relaxed flex gap-3 p-1 rounded hover:bg-white/5`}
+            >
+              <span className="opacity-40 text-xs w-20 shrink-0 pt-0.5">{log.timestamp}</span>
+              <span className="flex-1">{log.message}</span>
+            </div>
+          ))}
+          {isUpdating && (
+            <div className="flex items-center gap-2 text-purple-400 mt-2 animate-pulse pl-[5.5rem]">
+              <span className="w-2 h-4 bg-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

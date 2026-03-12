@@ -670,6 +670,231 @@ ipcMain.handle('stop-profile-update', async () => {
 });
 
 /**
+ * EAR (Early Access Recommended) JOBS IPC HANDLERS
+ */
+let earAutomationRunning = false;
+let currentEarLogs = [];
+let runEarJobsBot = null;
+let stopEarJobsBotFn = null;
+let earModuleReady = false;
+
+async function loadEarModule() {
+  try {
+    const modPath = path.join(__dirname, 'automation', 'earJobsBot.mjs');
+    const modUrl = `file://${modPath.replace(/\\/g, '/')}`;
+    const mod = await import(modUrl);
+    runEarJobsBot = mod.runEarJobsBot;
+    stopEarJobsBotFn = mod.stopEarJobsBot;
+    earModuleReady = true;
+    console.log('✅ EAR jobs module loaded');
+    return true;
+  } catch (error) {
+    earModuleReady = false;
+    console.error('❌ Failed to load EAR module:', error);
+    return false;
+  }
+}
+
+app.whenReady().then(async () => {
+  setTimeout(async () => { await loadEarModule(); }, 4000);
+});
+
+ipcMain.handle('start-ear-automation', async (event, config) => {
+  if (!runEarJobsBot || !earModuleReady) {
+    return { success: false, error: 'EAR module not loaded. Please try again in a few seconds.' };
+  }
+  if (earAutomationRunning) {
+    return { success: false, error: 'EAR automation already running' };
+  }
+
+  earAutomationRunning = true;
+  currentEarLogs = [];
+
+  try {
+    const API_BASE_URL = 'https://api.autojobzy.com/api';
+    const token = config.token;
+    if (!token) throw new Error('No authentication token provided');
+
+    const { default: fetch } = await import('node-fetch');
+    const settingsResponse = await fetch(`${API_BASE_URL}/job-settings`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!settingsResponse.ok) throw new Error('Failed to fetch job settings');
+    const settings = await settingsResponse.json();
+    if (!settings.naukriEmail || !settings.naukriPassword) {
+      throw new Error('Naukri credentials not found. Please add them in Job Profile settings.');
+    }
+
+    const result = await runEarJobsBot({
+      naukriEmail: settings.naukriEmail,
+      naukriPassword: settings.naukriPassword,
+    }, (log) => {
+      currentEarLogs.push(log);
+      if (mainWindow?.webContents) mainWindow.webContents.send('ear-automation-log', log);
+    });
+
+    earAutomationRunning = false;
+    return result;
+  } catch (error) {
+    earAutomationRunning = false;
+    return { success: false, error: error.message, logs: currentEarLogs };
+  }
+});
+
+ipcMain.handle('stop-ear-automation', async () => {
+  if (!stopEarJobsBotFn) return { success: false, message: 'EAR module not loaded' };
+  earAutomationRunning = false;
+  return await stopEarJobsBotFn();
+});
+
+ipcMain.handle('is-ear-automation-running', () => earAutomationRunning);
+ipcMain.handle('get-ear-automation-logs', () => currentEarLogs);
+
+/**
+ * RECOMMENDED JOB APPLY IPC HANDLERS
+ */
+let applyAutomationRunning = false;
+let currentApplyLogs = [];
+let runApplyJobsBot = null;
+let stopApplyJobsBotFn = null;
+let applyModuleReady = false;
+
+async function loadApplyModule() {
+  try {
+    const modPath = path.join(__dirname, 'automation', 'applyJobsBot.mjs');
+    const modUrl = `file://${modPath.replace(/\\/g, '/')}`;
+    const mod = await import(modUrl);
+    runApplyJobsBot = mod.runApplyJobsBot;
+    stopApplyJobsBotFn = mod.stopApplyJobsBot;
+    applyModuleReady = true;
+    console.log('✅ Apply jobs module loaded');
+    return true;
+  } catch (error) {
+    applyModuleReady = false;
+    console.error('❌ Failed to load Apply module:', error);
+    return false;
+  }
+}
+
+app.whenReady().then(async () => {
+  setTimeout(async () => { await loadApplyModule(); }, 5000);
+});
+
+ipcMain.handle('start-apply-automation', async (_event, config) => {
+  if (!runApplyJobsBot || !applyModuleReady) {
+    return { success: false, error: 'Apply module not loaded. Please try again in a few seconds.' };
+  }
+  if (applyAutomationRunning) {
+    return { success: false, error: 'Apply automation already running' };
+  }
+
+  applyAutomationRunning = true;
+  currentApplyLogs = [];
+
+  try {
+    const API_BASE_URL = 'https://api.autojobzy.com/api';
+    const token = config.token;
+    if (!token) throw new Error('No authentication token provided');
+
+    const { default: fetch } = await import('node-fetch');
+    const settingsResponse = await fetch(`${API_BASE_URL}/job-settings`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!settingsResponse.ok) throw new Error('Failed to fetch job settings');
+    const settings = await settingsResponse.json();
+    if (!settings.naukriEmail || !settings.naukriPassword) {
+      throw new Error('Naukri credentials not found. Please add them in Job Profile settings.');
+    }
+
+    // Fetch skills for AI-powered question answering (same as Smart Apply)
+    let skills = [];
+    try {
+      const skillsResponse = await fetch(`${API_BASE_URL}/job-settings/answers-data`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (skillsResponse.ok) {
+        const answersData = await skillsResponse.json();
+        skills = answersData.skills || [];
+        console.log(`✅ [Apply Bot] Loaded ${skills.length} skills for AI answers`);
+      }
+    } catch (_) {
+      console.log('⚠️  [Apply Bot] Could not fetch skills — will use profile data only');
+    }
+
+    const result = await runApplyJobsBot({
+      naukriEmail: settings.naukriEmail,
+      naukriPassword: settings.naukriPassword,
+      name: settings.name || '',
+      yearsOfExperience: settings.yearsOfExperience || settings.experience || '',
+      noticePeriod: settings.noticePeriod || '',
+      currentCTC: settings.currentCTC || settings.currentSalary || '',
+      expectedCTC: settings.expectedCTC || settings.expectedSalary || '',
+      location: settings.location || settings.preferredLocation || '',
+      mobile: settings.mobile || settings.phone || '',
+      maxJobsToApply: config.maxJobsToApply || 15,
+      skills,
+    }, (log) => {
+      currentApplyLogs.push(log);
+      if (mainWindow?.webContents) mainWindow.webContents.send('apply-automation-log', log);
+    });
+
+    applyAutomationRunning = false;
+    return result;
+  } catch (error) {
+    applyAutomationRunning = false;
+    return { success: false, error: error.message, logs: currentApplyLogs };
+  }
+});
+
+ipcMain.handle('stop-apply-automation', async () => {
+  if (!stopApplyJobsBotFn) return { success: false, message: 'Apply module not loaded' };
+  applyAutomationRunning = false;
+  return await stopApplyJobsBotFn();
+});
+
+ipcMain.handle('is-apply-automation-running', () => applyAutomationRunning);
+ipcMain.handle('get-apply-automation-logs', () => currentApplyLogs);
+
+/**
+ * Print resume to PDF — opens a hidden window, renders HTML, saves PDF
+ */
+ipcMain.handle('print-resume-pdf', async (_event, htmlContent, suggestedName) => {
+  let printWindow = null;
+  try {
+    printWindow = new BrowserWindow({
+      show: false,
+      width: 794,
+      height: 1123,
+      webPreferences: { nodeIntegration: false, contextIsolation: true },
+    });
+
+    const encoded = encodeURIComponent(htmlContent);
+    await printWindow.loadURL(`data:text/html;charset=utf-8,${encoded}`);
+
+    const pdfData = await printWindow.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      margins: { marginType: 'custom', top: 0.39, bottom: 0.39, left: 0.39, right: 0.39 },
+    });
+
+    printWindow.close();
+    printWindow = null;
+
+    const { filePath, canceled } = await dialog.showSaveDialog({
+      defaultPath: suggestedName || 'Resume.pdf',
+      filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
+    });
+
+    if (canceled || !filePath) return { success: false, reason: 'canceled' };
+    fs.writeFileSync(filePath, pdfData);
+    return { success: true, filePath };
+  } catch (err) {
+    if (printWindow) try { printWindow.close(); } catch (_) {}
+    return { success: false, reason: err.message };
+  }
+});
+
+/**
  * Handle uncaught exceptions
  */
 process.on('uncaughtException', (error) => {

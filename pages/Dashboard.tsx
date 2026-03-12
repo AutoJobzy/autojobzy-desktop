@@ -2,7 +2,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Play, Square, Download, Activity, Save, User, Key, MapPin, Search, Globe, ChevronLeft, ChevronRight, RotateCw, X, UploadCloud, FileText, CheckCircle, Clock, IndianRupee, Calendar, Loader2, AlertCircle, Plus, Trash2, Star, Filter, Building2, Briefcase, GraduationCap, Home, Zap, Crown, Rocket, CreditCard, Check, BarChart3, TrendingUp, TrendingDown, Target, Award, Users, Mail, ThumbsUp, ArrowUpRight, Lightbulb, Eye, EyeOff, ExternalLink, Edit2 } from 'lucide-react';
+import { Play, Square, Download, Activity, Save, User, Key, MapPin, Search, Globe, ChevronLeft, ChevronRight, RotateCw, X, UploadCloud, FileText, CheckCircle, Clock, IndianRupee, Calendar, Loader2, AlertCircle, Plus, Trash2, Star, Filter, Building2, Briefcase, GraduationCap, Home, Zap, Crown, Rocket, CreditCard, Check, BarChart3, TrendingUp, TrendingDown, Target, Award, Users, Mail, ThumbsUp, ArrowUpRight, Lightbulb, Eye, EyeOff, ExternalLink, Edit2, Wand2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import OnboardingFlow from '../components/OnboardingFlow';
@@ -10,6 +10,9 @@ import SuggestAndEarn from '../components/SuggestAndEarn';
 import AppSettings from '../components/AppSettings';
 import UserAnalytics from '../components/UserAnalytics';
 import AutoProfileUpdate from '../components/AutoProfileUpdate';
+import AIJobAssistant from '../components/AIJobAssistant';
+import ResumeBuilder from '../components/ResumeBuilder';
+import LearningModule from '../components/LearningModule';
 import { runBot, stopAutomation, getAutomationLogs, updateJobSettings, getJobSettings, getSkills, saveSkillsBulk, deleteSkill, updateSkill, getAllFilters, getUserFilters, saveUserFilters, runFilter, getFilterLogs, verifyNaukriCredentials, viewResume, downloadResume, deleteResumeFile, uploadResume } from '../services/automationApi';
 import { getSubscriptionStatus, createOrder, initiatePayment } from '../services/subscriptionApi';
 import { getPlans, Plan } from '../services/plansApi';
@@ -51,6 +54,19 @@ const Dashboard: React.FC = () => {
 
   // Bot automation polling ref
   const botPollRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Job Engine sub-tab state
+  const [jobEngineTab, setJobEngineTab] = useState<'engine' | 'shareinterest' | 'profileupdate' | 'jobapply'>('engine');
+  const [earLogs, setEarLogs] = useState<any[]>([]);
+  const [earRunning, setEarRunning] = useState(false);
+  const [earResult, setEarResult] = useState<{ shared: number; alreadyShared: number; failed: number } | null>(null);
+  const earLogContainerRef = useRef<HTMLDivElement>(null);
+
+  // Recommended Job Apply state
+  const [applyLogs, setApplyLogs] = useState<any[]>([]);
+  const [applyRunning, setApplyRunning] = useState(false);
+  const [applyResult, setApplyResult] = useState<{ applied: number; skipped: number; failed: number } | null>(null);
+  const applyLogContainerRef = useRef<HTMLDivElement>(null);
 
   // Local state for config form
   const [configForm, setConfigForm] = useState(user.config || {
@@ -575,6 +591,130 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // ─── EAR (Share Interest) Handlers ───────────────────────────────────────
+  const handleStartShareInterest = async () => {
+    const electronAPI = (window as any).electronAPI || (window as any).electron;
+    if (!electronAPI) {
+      toast.error('Share Interest is only available in the Desktop app');
+      return;
+    }
+
+    setEarRunning(true);
+    setEarResult(null);
+    setEarLogs([{
+      timestamp: new Date().toLocaleTimeString(),
+      message: '🚀 Bhai, Circuit Share Interest karne ki taiyari kar raha hai... tension nahi lene ka!',
+      type: 'info',
+    }]);
+
+    // Listen for real-time logs
+    const logSub = electronAPI.onEarAutomationLog?.((log: any) => {
+      setEarLogs(prev => [...prev, log]);
+      if (earLogContainerRef.current) {
+        earLogContainerRef.current.scrollTop = earLogContainerRef.current.scrollHeight;
+      }
+    });
+
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+      const result = await electronAPI.startEarAutomation({ token });
+
+      if (result.shared !== undefined) {
+        setEarResult({ shared: result.shared, alreadyShared: result.alreadyShared ?? 0, failed: result.failed ?? 0 });
+      }
+      if (!result.success && result.error) {
+        setEarLogs(prev => [...prev, {
+          timestamp: new Date().toLocaleTimeString(),
+          message: `❌ Aye bhai, bada scene ho gaya: ${result.error} — ek baar check kar!`,
+          type: 'error',
+        }]);
+      }
+    } catch (err: any) {
+      setEarLogs(prev => [...prev, {
+        timestamp: new Date().toLocaleTimeString(),
+        message: `❌ Bhai, gadbad ho gayi: ${err.message} — don't worry, dekh lenge!`,
+        type: 'error',
+      }]);
+    } finally {
+      setEarRunning(false);
+      if (logSub) electronAPI.removeEarAutomationLogListener?.(logSub);
+    }
+  };
+
+  const handleStopShareInterest = async () => {
+    const electronAPI = (window as any).electronAPI || (window as any).electron;
+    if (!electronAPI) return;
+    setEarRunning(false);
+    await electronAPI.stopEarAutomation?.();
+    setEarLogs(prev => [...prev, {
+      timestamp: new Date().toLocaleTimeString(),
+      message: '🛑 Bhai ne thamba mhantla! Circuit ruk gaya — no problem bidu!',
+      type: 'warning',
+    }]);
+  };
+
+  // ─── Recommended Job Apply Handlers ──────────────────────────────────────
+  const handleStartJobApply = async () => {
+    const electronAPI = (window as any).electronAPI || (window as any).electron;
+    if (!electronAPI) {
+      toast.error('Recommended Job Apply is only available in the Desktop app');
+      return;
+    }
+
+    setApplyRunning(true);
+    setApplyResult(null);
+    setApplyLogs([{
+      timestamp: new Date().toLocaleTimeString(),
+      message: '🚀 Bhai, Circuit Recommended Jobs par apply karne ki dukaan kholega — ekdum bindaas!',
+      type: 'info',
+    }]);
+
+    const logSub = electronAPI.onApplyAutomationLog?.((log: any) => {
+      setApplyLogs(prev => [...prev, log]);
+      if (applyLogContainerRef.current) {
+        applyLogContainerRef.current.scrollTop = applyLogContainerRef.current.scrollHeight;
+      }
+    });
+
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+      const result = await electronAPI.startApplyAutomation({ token });
+
+      if (result.applied !== undefined) {
+        setApplyResult({ applied: result.applied, skipped: result.skipped ?? 0, failed: result.failed ?? 0 });
+      }
+      if (!result.success && result.error) {
+        setApplyLogs(prev => [...prev, {
+          timestamp: new Date().toLocaleTimeString(),
+          message: `❌ Aye bhai, bada scene ho gaya: ${result.error} — ek baar dekh!`,
+          type: 'error',
+        }]);
+      }
+    } catch (err: any) {
+      setApplyLogs(prev => [...prev, {
+        timestamp: new Date().toLocaleTimeString(),
+        message: `❌ Bhai, gadbad ho gayi: ${err.message} — tension nahi, phir try karte hai!`,
+        type: 'error',
+      }]);
+    } finally {
+      setApplyRunning(false);
+      if (logSub) electronAPI.removeApplyAutomationLogListener?.(logSub);
+    }
+  };
+
+  const handleStopJobApply = async () => {
+    const electronAPI = (window as any).electronAPI || (window as any).electron;
+    if (!electronAPI) return;
+    setApplyRunning(false);
+    await electronAPI.stopApplyAutomation?.();
+    setApplyLogs(prev => [...prev, {
+      timestamp: new Date().toLocaleTimeString(),
+      message: '🛑 Bhai ne beech mein hi rok diya! Circuit ruka — koi baat nahi bidu!',
+      type: 'warning',
+    }]);
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -699,6 +839,20 @@ const Dashboard: React.FC = () => {
     const fileInput = document.getElementById('resume-upload-dash') as HTMLInputElement;
     if (fileInput) {
       fileInput.click();
+    }
+  };
+
+  const handleDeleteResume = async () => {
+    try {
+      const response = await deleteResumeFile();
+      if (response.success) {
+        setConfigForm(prev => ({ ...prev, resumeName: '', resumeScore: 0 }));
+        toast.success('Resume deleted');
+      } else {
+        toast.error(response.message || 'Failed to delete resume');
+      }
+    } catch (error: any) {
+      toast.error('Failed to delete resume');
     }
   };
 
@@ -992,8 +1146,271 @@ const Dashboard: React.FC = () => {
     switch (activeTab) {
       case 'overview':
         return (
-          <div className="w-full max-w-[95%] mx-auto p-6">            {/* Browser Simulation + Terminal Stack - Centered Container */}
-            <div className="flex flex-col bg-black rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
+          <div className="w-full max-w-[95%] mx-auto p-6">
+
+            {/* Sub-tab switcher */}
+            <div className="flex gap-1 mb-6 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit">
+              <button
+                onClick={() => setJobEngineTab('engine')}
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  jobEngineTab === 'engine'
+                    ? 'bg-gradient-to-r from-neon-blue/20 to-blue-500/10 text-neon-blue border border-neon-blue/30 shadow-[0_0_12px_rgba(0,243,255,0.15)]'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <Filter className="w-4 h-4" /> Smart Apply
+              </button>
+              <button
+                onClick={() => setJobEngineTab('shareinterest')}
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  jobEngineTab === 'shareinterest'
+                    ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/10 text-green-400 border border-green-500/30 shadow-[0_0_12px_rgba(34,197,94,0.15)]'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <ThumbsUp className="w-4 h-4" /> Share Interest
+              </button>
+              <button
+                onClick={() => setJobEngineTab('profileupdate')}
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  jobEngineTab === 'profileupdate'
+                    ? 'bg-gradient-to-r from-purple-500/20 to-violet-500/10 text-purple-400 border border-purple-500/30 shadow-[0_0_12px_rgba(168,85,247,0.15)]'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <RotateCw className="w-4 h-4" /> Profile Update
+              </button>
+              <button
+                onClick={() => setJobEngineTab('jobapply')}
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  jobEngineTab === 'jobapply'
+                    ? 'bg-gradient-to-r from-orange-500/20 to-amber-500/10 text-orange-400 border border-orange-500/30 shadow-[0_0_12px_rgba(249,115,22,0.15)]'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                <Rocket className="w-4 h-4" /> Quick Apply
+              </button>
+            </div>
+
+            {/* ── SHARE INTEREST TAB ── */}
+            {jobEngineTab === 'shareinterest' && (
+              <div className="flex flex-col gap-6">
+                {/* Info card */}
+                <div className="bg-gradient-to-br from-gray-900 to-black border border-green-500/20 rounded-2xl p-6 shadow-[0_0_30px_rgba(34,197,94,0.05)]">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center justify-center flex-shrink-0">
+                      <ThumbsUp className="w-6 h-6 text-green-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white mb-1">Naukri Recommended Jobs — Share Interest</h3>
+                      <p className="text-sm text-gray-400">
+                        Automatically shares your interest in all pending Naukri Early Access Recommended (EAR) jobs.
+                        The bot logs in with your saved credentials, scrolls through the jobs page, and clicks
+                        "Share Interest" on every unshared job.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Controls */}
+                <div className="flex items-center gap-4">
+                  {!earRunning ? (
+                    <button
+                      onClick={handleStartShareInterest}
+                      className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-black text-sm font-bold rounded-xl hover:from-green-400 hover:to-emerald-400 transition-all shadow-[0_0_20px_rgba(34,197,94,0.4)] hover:shadow-[0_0_30px_rgba(34,197,94,0.6)]"
+                    >
+                      <Play className="w-4 h-4 fill-current" /> Start Share Interest
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleStopShareInterest}
+                      className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-red-500 text-white text-sm font-bold rounded-xl hover:from-red-500 hover:to-red-400 transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+                    >
+                      <Square className="w-4 h-4 fill-current" /> Stop
+                    </button>
+                  )}
+                  {earRunning && (
+                    <div className="flex items-center gap-2 text-green-400 text-sm font-mono">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Running...
+                    </div>
+                  )}
+                </div>
+
+                {/* Result summary */}
+                {earResult && (
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-green-400">{earResult.shared}</div>
+                      <div className="text-xs text-gray-400 mt-1">Interest Shared</div>
+                    </div>
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-blue-400">{earResult.alreadyShared}</div>
+                      <div className="text-xs text-gray-400 mt-1">Already Shared</div>
+                    </div>
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-red-400">{earResult.failed}</div>
+                      <div className="text-xs text-gray-400 mt-1">Failed</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Log terminal */}
+                <div className="bg-black rounded-2xl border border-gray-800 overflow-hidden">
+                  <div className="px-6 py-2 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700 flex justify-between items-center">
+                    <span className="text-xs text-gray-400 font-mono uppercase tracking-wider flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${earRunning ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`}></div>
+                      Share Interest Logs {earLogs.length > 0 && `(${earLogs.length})`}
+                    </span>
+                    <span className="text-xs text-gray-600 font-mono">earJobsBot.mjs</span>
+                  </div>
+                  <div
+                    ref={earLogContainerRef}
+                    className="h-72 overflow-y-auto p-6 font-mono text-sm space-y-2 bg-black text-gray-300"
+                  >
+                    {earLogs.length === 0 && (
+                      <div className="text-gray-600 italic">
+                        Click 'Start Share Interest' to begin.
+                      </div>
+                    )}
+                    {earLogs.map((log, idx) => (
+                      <div
+                        key={idx}
+                        className={`${
+                          log.type === 'error' ? 'text-red-400' :
+                          log.type === 'success' ? 'text-green-400' :
+                          log.type === 'warning' ? 'text-yellow-400' :
+                          'text-gray-300'
+                        } break-words font-mono leading-relaxed flex gap-3 p-1 rounded hover:bg-white/5`}
+                      >
+                        <span className="opacity-40 text-xs w-20 shrink-0 pt-0.5">{log.timestamp}</span>
+                        <span className="flex-1">{log.message}</span>
+                      </div>
+                    ))}
+                    {earRunning && (
+                      <div className="flex items-center gap-2 text-green-400 mt-2 animate-pulse pl-[5.5rem]">
+                        <span className="w-2 h-4 bg-green-400 shadow-[0_0_8px_rgba(34,197,94,0.8)]"></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── PROFILE UPDATE TAB ── */}
+            {jobEngineTab === 'profileupdate' && (
+              <div className="flex flex-col gap-4">
+                <AutoProfileUpdate />
+              </div>
+            )}
+
+            {/* ── RECOMMENDED JOB APPLY TAB ── */}
+            {jobEngineTab === 'jobapply' && (
+              <div className="flex flex-col gap-6">
+                {/* Info card */}
+                <div className="bg-gradient-to-br from-gray-900 to-black border border-orange-500/20 rounded-2xl p-6 shadow-[0_0_30px_rgba(249,115,22,0.05)]">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center flex-shrink-0">
+                      <Rocket className="w-6 h-6 text-orange-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white mb-1">Naukri Recommended Jobs — Auto Apply</h3>
+                      <p className="text-sm text-gray-400">
+                        Automatically applies to all Naukri recommended jobs on your behalf.
+                        The bot logs in with your saved credentials, scrolls through recommended jobs,
+                        and clicks "Apply" on every matching job — saving you hours of manual effort.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Controls */}
+                <div className="flex items-center gap-4">
+                  {!applyRunning ? (
+                    <button
+                      onClick={handleStartJobApply}
+                      className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-black text-sm font-bold rounded-xl hover:from-orange-400 hover:to-amber-400 transition-all shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:shadow-[0_0_30px_rgba(249,115,22,0.6)]"
+                    >
+                      <Play className="w-4 h-4 fill-current" /> Start Auto Apply
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleStopJobApply}
+                      className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-600 to-red-500 text-white text-sm font-bold rounded-xl hover:from-red-500 hover:to-red-400 transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+                    >
+                      <Square className="w-4 h-4 fill-current" /> Stop
+                    </button>
+                  )}
+                  {applyRunning && (
+                    <div className="flex items-center gap-2 text-orange-400 text-sm font-mono">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Running...
+                    </div>
+                  )}
+                </div>
+
+                {/* Result summary */}
+                {applyResult && (
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-orange-400">{applyResult.applied}</div>
+                      <div className="text-xs text-gray-400 mt-1">Applied</div>
+                    </div>
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-blue-400">{applyResult.skipped}</div>
+                      <div className="text-xs text-gray-400 mt-1">Skipped</div>
+                    </div>
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
+                      <div className="text-2xl font-bold text-red-400">{applyResult.failed}</div>
+                      <div className="text-xs text-gray-400 mt-1">Failed</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Log terminal */}
+                <div className="bg-black rounded-2xl border border-gray-800 overflow-hidden">
+                  <div className="px-6 py-2 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700 flex justify-between items-center">
+                    <span className="text-xs text-gray-400 font-mono uppercase tracking-wider flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${applyRunning ? 'bg-orange-400 animate-pulse' : 'bg-gray-600'}`}></div>
+                      Job Apply Logs {applyLogs.length > 0 && `(${applyLogs.length})`}
+                    </span>
+                    <span className="text-xs text-gray-600 font-mono">applyJobsBot.mjs</span>
+                  </div>
+                  <div
+                    ref={applyLogContainerRef}
+                    className="h-72 overflow-y-auto p-6 font-mono text-sm space-y-2 bg-black text-gray-300"
+                  >
+                    {applyLogs.length === 0 && (
+                      <div className="text-gray-600 italic">
+                        Click 'Start Auto Apply' to begin.
+                      </div>
+                    )}
+                    {applyLogs.map((log, idx) => (
+                      <div
+                        key={idx}
+                        className={`${
+                          log.type === 'error' ? 'text-red-400' :
+                          log.type === 'success' ? 'text-green-400' :
+                          log.type === 'warning' ? 'text-yellow-400' :
+                          'text-gray-300'
+                        } break-words font-mono leading-relaxed flex gap-3 p-1 rounded hover:bg-white/5`}
+                      >
+                        <span className="opacity-40 text-xs w-20 shrink-0 pt-0.5">{log.timestamp}</span>
+                        <span className="flex-1">{log.message}</span>
+                      </div>
+                    ))}
+                    {applyRunning && (
+                      <div className="flex items-center gap-2 text-orange-400 mt-2 animate-pulse pl-[5.5rem]">
+                        <span className="w-2 h-4 bg-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.8)]"></span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── JOB ENGINE TAB ── */}
+            {jobEngineTab === 'engine' && <div className="flex flex-col bg-black rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
 
               {/* Mock Browser Header - Consistent Theme */}
               <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700 p-3 flex items-center gap-4 shadow-lg">
@@ -1214,7 +1631,7 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
               </div>
-            </div>
+            </div>}
           </div>
         );
 
@@ -1485,66 +1902,113 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
 
-                {/* Resume Upload Section */}
-                <div className="bg-dark-900/50 p-6 rounded-xl border border-dashed border-gray-600">
-                  <h3 className="text-white font-bold mb-4 flex items-center gap-2 text-sm">
-                    <UploadCloud className="text-neon-blue w-4 h-4" /> Resume & Analysis <span className="text-gray-500 ml-1 text-xs">(Optional)</span>
-                  </h3>
-
-                  {!configForm.resumeName && !analyzing ? (
-                    <div className="text-center py-4">
-                      <input
-                        type="file"
-                        id="resume-upload-dash"
-                        className="hidden"
-                        accept=".pdf,.doc,.docx"
-                        onChange={handleFileUpload}
-                      />
-                      <label htmlFor="resume-upload-dash" className="cursor-pointer inline-flex flex-col items-center">
-                        <span className="text-neon-blue font-bold hover:underline text-sm">Upload Resume</span>
-                        <span className="text-[10px] text-gray-500 mt-1">PDF, DOCX up to 5MB</span>
-                      </label>
+                {/* Resume & Analysis Section */}
+                <div className="bg-gradient-to-br from-gray-900 to-black rounded-2xl border border-gray-800 overflow-hidden">
+                  {/* Header */}
+                  <div className="px-5 py-3.5 border-b border-gray-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-neon-purple" />
+                      <span className="text-sm font-semibold text-white">Resume & Analysis</span>
+                      <span className="text-[10px] text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">Optional</span>
                     </div>
+                    {configForm.resumeScore > 0 && !analyzing && (
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
+                        <span className="text-xs font-mono text-green-400">Score: {configForm.resumeScore}/100</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hidden file input (shared for upload + replace) */}
+                  <input
+                    type="file"
+                    id="resume-upload-dash"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx"
+                    onChange={handleFileUpload}
+                  />
+
+                  {/* No resume — drop zone */}
+                  {!configForm.resumeName && !analyzing ? (
+                    <label
+                      htmlFor="resume-upload-dash"
+                      className="flex flex-col items-center justify-center gap-3 py-10 px-6 cursor-pointer group"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-neon-blue/10 border border-neon-blue/20 flex items-center justify-center group-hover:bg-neon-blue/20 transition-colors">
+                        <UploadCloud className="w-6 h-6 text-neon-blue" />
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-semibold text-white group-hover:text-neon-blue transition-colors">Click to upload resume</div>
+                        <div className="text-xs text-gray-500 mt-1">PDF, DOC, DOCX — up to 5MB</div>
+                      </div>
+                    </label>
                   ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between bg-dark-800 p-3 rounded border border-white/10">
-                        <div className="flex items-center gap-3">
-                          <FileText className="text-neon-purple w-5 h-5" />
-                          <div>
-                            <div className="text-white font-medium text-sm">{configForm.resumeName || "Parsing Resume..."}</div>
-                            {analyzing && <div className="text-[10px] text-gray-400">Updating Analysis...</div>}
-                          </div>
+                    <div className="p-5 space-y-4">
+                      {/* File card */}
+                      <div className="flex items-center gap-4 bg-gray-900/60 rounded-xl p-4 border border-gray-800">
+                        <div className="w-10 h-10 rounded-lg bg-neon-purple/10 border border-neon-purple/20 flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-5 h-5 text-neon-purple" />
                         </div>
-                        {analyzing ? (
-                          <span className="text-neon-blue font-bold text-xs">{uploadProgress}%</span>
-                        ) : (
-                          <CheckCircle className="text-green-500 w-4 h-4" />
-                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-white font-medium text-sm truncate">
+                            {configForm.resumeName || 'Parsing Resume...'}
+                          </div>
+                          {analyzing ? (
+                            <div className="mt-1.5">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[10px] text-gray-400">Analysing...</span>
+                                <span className="text-[10px] text-neon-blue font-mono">{uploadProgress}%</span>
+                              </div>
+                              <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-neon-blue to-neon-purple rounded-full transition-all duration-300"
+                                  style={{ width: `${uploadProgress}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <CheckCircle className="w-3 h-3 text-green-400" />
+                              <span className="text-[10px] text-green-400">Ready</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Resume Action Buttons */}
+                      {/* Action buttons */}
                       {!analyzing && (
-                        <div className="flex items-center gap-2">
+                        <div className="grid grid-cols-4 gap-2">
                           <button
                             onClick={handleViewResume}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 rounded-lg text-blue-400 text-sm font-medium transition-colors"
+                            title="View resume"
+                            className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 hover:border-blue-500/40 text-blue-400 transition-all group"
                           >
-                            <Eye className="w-4 h-4" />
-                            View
+                            <Eye className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                            <span className="text-[10px] font-semibold">View</span>
                           </button>
                           <button
                             onClick={handleUpdateResume}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-purple-400 text-sm font-medium transition-colors"
+                            title="Replace resume"
+                            className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-neon-purple/10 hover:bg-neon-purple/20 border border-neon-purple/20 hover:border-neon-purple/40 text-neon-purple transition-all group"
                           >
-                            <UploadCloud className="w-4 h-4" />
-                            Update
+                            <UploadCloud className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                            <span className="text-[10px] font-semibold">Replace</span>
                           </button>
                           <button
                             onClick={handleDownloadResume}
-                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 rounded-lg text-green-400 text-sm font-medium transition-colors"
+                            title="Download resume"
+                            className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 hover:border-green-500/40 text-green-400 transition-all group"
                           >
-                            <Download className="w-4 h-4" />
-                            Download
+                            <Download className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                            <span className="text-[10px] font-semibold">Download</span>
+                          </button>
+                          <button
+                            onClick={handleDeleteResume}
+                            title="Delete resume"
+                            className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 text-red-400 transition-all group"
+                          >
+                            <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                            <span className="text-[10px] font-semibold">Delete</span>
                           </button>
                         </div>
                       )}
@@ -3283,6 +3747,27 @@ const Dashboard: React.FC = () => {
 
       case 'settings':
         return <AppSettings />;
+
+      case 'resume-builder':
+        return (
+          <div className="p-6 h-full">
+            <ResumeBuilder />
+          </div>
+        );
+
+      case 'ai-assistant':
+        return (
+          <div className="max-w-4xl mx-auto p-6 h-full">
+            <AIJobAssistant />
+          </div>
+        );
+
+      case 'learn':
+        return (
+          <div className="p-6">
+            <LearningModule />
+          </div>
+        );
 
       default:
         return <div>Select a menu item</div>;

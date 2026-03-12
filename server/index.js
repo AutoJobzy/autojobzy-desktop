@@ -28,6 +28,7 @@ import profileUpdateRoutes from './routes/profileUpdate.js';
 import superadminRoutes from './routes/superadmin.js';
 import instituteAdminRoutes from './routes/instituteAdmin.js';
 import resumeUploadRoutes from './routes/resumeUpload.js';
+import aiRoutes from './routes/ai.js';
 import { initScheduler } from './services/schedulerService.js';
 
 // Import models to ensure they're loaded
@@ -223,6 +224,7 @@ app.use('/api/profile-update', profileUpdateRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/institute-admin', instituteAdminRoutes);
 app.use('/api/resume', resumeUploadRoutes);
+app.use('/api/ai', aiRoutes);
 
 // ============= ERROR HANDLING =============
 

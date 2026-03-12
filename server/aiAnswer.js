@@ -362,6 +362,15 @@ export async function getAnswer(question) {
 }
 
 /**
+ * Set skills data directly (used by Electron automation bots that already have skills in config)
+ * @param {Array} skills - Array of {skill_name, display_name, rating, out_of, experience}
+ */
+export function setSkillsData(skills) {
+    skillsData = Array.isArray(skills) ? skills : [];
+    console.log(`✅ Skills data set directly: ${skillsData.length} skills`);
+}
+
+/**
  * Get resume text for display
  * @returns {string} Resume text
  */

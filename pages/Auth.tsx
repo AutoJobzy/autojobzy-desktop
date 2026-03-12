@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, User as UserIcon, ArrowRight, Loader2, AlertCircle, CheckCircle, Sparkles } from 'lucide-react';
+import { Mail, Lock, User as UserIcon, ArrowRight, Loader2, AlertCircle, CheckCircle, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { fetchWithTimeout, safeJsonParse } from '../utils/fetchWithTimeout';
 import { getTimeoutForPlatform, debugLog, getPlatformSpecificError } from '../utils/platformDetection';
 
@@ -20,6 +20,8 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   // Always use 'individual' type - Institute functionality hidden
   const userType = 'individual';
+
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -394,13 +396,21 @@ const Auth: React.FC<AuthProps> = ({ type }) => {
             <div className="relative">
               <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
-                className="w-full bg-dark-900 border border-gray-700 rounded-lg py-3 pl-10 pr-4 text-white focus:border-neon-blue focus:ring-1 focus:ring-neon-blue outline-none transition-all"
+                className="w-full bg-dark-900 border border-gray-700 rounded-lg py-3 pl-10 pr-10 text-white focus:border-neon-blue focus:ring-1 focus:ring-neon-blue outline-none transition-all"
                 placeholder="••••••••"
                 value={formData.password}
                 onChange={e => setFormData({ ...formData, password: e.target.value })}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-3 top-3 text-gray-500 hover:text-gray-300 transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
           </div>
 

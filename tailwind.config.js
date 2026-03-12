@@ -59,8 +59,9 @@ export default {
         }
       },
       fontFamily: {
-        heading: ['Poppins', 'sans-serif'],
-        sans: ['Inter', 'sans-serif'],
+        heading: ['Poppins', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['Fira Code', 'SF Mono', 'Cascadia Code', 'Consolas', 'Monaco', 'monospace'],
       },
       animation: {
         'gradient-x': 'gradient-x 3s ease infinite',

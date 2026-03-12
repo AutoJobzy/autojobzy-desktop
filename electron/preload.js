@@ -99,7 +99,47 @@ const electronAPIObject = {
     } else {
       ipcRenderer.removeAllListeners('profile-update-log');
     }
-  }
+  },
+
+  // ===== EAR (RECOMMENDED JOBS) APIs =====
+  startEarAutomation: (config) => ipcRenderer.invoke('start-ear-automation', config),
+  stopEarAutomation: () => ipcRenderer.invoke('stop-ear-automation'),
+  isEarAutomationRunning: () => ipcRenderer.invoke('is-ear-automation-running'),
+  getEarAutomationLogs: () => ipcRenderer.invoke('get-ear-automation-logs'),
+  onEarAutomationLog: (callback) => {
+    const subscription = (event, log) => callback(log);
+    ipcRenderer.on('ear-automation-log', subscription);
+    return subscription;
+  },
+  removeEarAutomationLogListener: (callback) => {
+    if (callback) {
+      ipcRenderer.removeListener('ear-automation-log', callback);
+    } else {
+      ipcRenderer.removeAllListeners('ear-automation-log');
+    }
+  },
+
+  // ===== RECOMMENDED JOB APPLY APIs =====
+  startApplyAutomation: (config) => ipcRenderer.invoke('start-apply-automation', config),
+  stopApplyAutomation: () => ipcRenderer.invoke('stop-apply-automation'),
+  isApplyAutomationRunning: () => ipcRenderer.invoke('is-apply-automation-running'),
+  getApplyAutomationLogs: () => ipcRenderer.invoke('get-apply-automation-logs'),
+  onApplyAutomationLog: (callback) => {
+    const subscription = (event, log) => callback(log);
+    ipcRenderer.on('apply-automation-log', subscription);
+    return subscription;
+  },
+  removeApplyAutomationLogListener: (callback) => {
+    if (callback) {
+      ipcRenderer.removeListener('apply-automation-log', callback);
+    } else {
+      ipcRenderer.removeAllListeners('apply-automation-log');
+    }
+  },
+
+  // ===== RESUME PDF DOWNLOAD =====
+  printResumePDF: (htmlContent, suggestedName) =>
+    ipcRenderer.invoke('print-resume-pdf', htmlContent, suggestedName),
 };
 
 // Expose as both 'electronAPI' and 'electron' for convenience

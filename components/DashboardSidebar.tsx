@@ -16,6 +16,9 @@ import {
   ChevronUp,
   Activity,
   Building2,
+  Wand2,
+  Bot,
+  GraduationCap,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -62,8 +65,8 @@ const DashboardSidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) =
     ...(showAnalyticsTab ? [{ id: 'analytics', label: 'Analytics', icon: BarChart3 }] : []),
     { id: 'activity', label: 'My Activity', icon: Activity },
     { id: 'config', label: 'Job Profile', icon: Settings },
-    { id: 'auto-profile-update', label: 'Auto Profile Update', icon: RefreshCw },
     { id: 'history', label: 'Application History', icon: FileText },
+    { id: 'learn', label: 'Learn & Grow', icon: GraduationCap },
   ];
 
   // Build profile menu items dynamically based on user role
