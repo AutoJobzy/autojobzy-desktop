@@ -13,7 +13,7 @@ import AutoProfileUpdate from '../components/AutoProfileUpdate';
 import AIJobAssistant from '../components/AIJobAssistant';
 import ResumeBuilder from '../components/ResumeBuilder';
 import LearningModule from '../components/LearningModule';
-import { runBot, stopAutomation, getAutomationLogs, updateJobSettings, getJobSettings, getSkills, saveSkillsBulk, deleteSkill, updateSkill, getAllFilters, getUserFilters, saveUserFilters, runFilter, getFilterLogs, verifyNaukriCredentials, viewResume, downloadResume, deleteResumeFile, uploadResume } from '../services/automationApi';
+import { runBot, stopAutomation, getAutomationLogs, updateJobSettings, getJobSettings, getSkills, saveSkillsBulk, deleteSkill, updateSkill, syncSkills, deleteAllSkills, getAllFilters, getUserFilters, saveUserFilters, runFilter, getFilterLogs, verifyNaukriCredentials, viewResume, downloadResume, deleteResumeFile, uploadResume, downloadSkillsTemplate, importSkillsXlsx } from '../services/automationApi';
 import { getSubscriptionStatus, createOrder, initiatePayment } from '../services/subscriptionApi';
 import { getPlans, Plan } from '../services/plansApi';
 
@@ -24,6 +24,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout, logs, reports, isAutomating, startAutomation, stopAutomation, updateConfig, completeOnboarding } = useApp();
   const logContainerRef = useRef<HTMLDivElement>(null);
+  const xlsxInputRef = useRef<HTMLInputElement>(null);
   // New users without Naukri credentials should see Job Profile tab first
   const [activeTab, setActiveTab] = useState(!user.config?.naukriUsername ? 'config' : 'overview');
   const [isRunning, setIsRunning] = useState(false);
@@ -344,10 +345,8 @@ const Dashboard: React.FC = () => {
       configForm.naukriUsername,        // Naukri Email
       configForm.naukriPassword,        // Naukri Password
       // resumeName is OPTIONAL - removed from required fields
-      configForm.targetRole,            // Target Role
       configForm.experience,            // Experience
       configForm.location,              // Preferred Location
-      configForm.keywords,              // Keywords
       configForm.currentSalary,         // Current Salary
       configForm.expectedSalary,        // Expected Salary
       configForm.noticePeriod,          // Notice Period
@@ -487,18 +486,36 @@ const Dashboard: React.FC = () => {
       runBot({
         maxPages: configForm.maxPages || 5,
         searchKeywords: configForm.keywords,
-      }).then((result) => {
-        // Handle completion
-        if (result.logs && result.logs.length > 0) {
-          setBotLogs(result.logs);
+      }).then(async (result) => {
+        // Already running — stop and let user retry
+        if (!result.success && (result.message === 'Already running' || (result.error || '').toLowerCase().includes('already running'))) {
+          setBotLogs(prev => [...prev, {
+            timestamp: new Date().toLocaleTimeString(),
+            message: '⚠️ Previous automation detected. Stopping it...',
+            type: 'warning'
+          }]);
+          try { await stopAutomation(); } catch (_) { }
+          setBotLogs(prev => [...prev, {
+            timestamp: new Date().toLocaleTimeString(),
+            message: '✅ Stopped. You can start again.',
+            type: 'success'
+          }]);
+          setIsRunning(false);
+          return;
         }
 
+        // Non-blocking start acknowledged — keep polling logs, isRunning stays true
         if (result.success) {
-          setSuccess(`✅ Automation completed! Applied to ${result.jobsApplied} jobs`);
+          setBotLogs(prev => [...prev, {
+            timestamp: new Date().toLocaleTimeString(),
+            message: '✅ Automation started successfully. Fetching logs...',
+            type: 'success'
+          }]);
+          // isRunning stays true; polling will detect when done
         } else {
           setError(`❌ Automation error: ${result.error}`);
+          setIsRunning(false);
         }
-        setIsRunning(false);
       }).catch((err: any) => {
         setError(`Failed to run automation: ${err.message}`);
         setBotLogs(prev => [...prev, {
@@ -527,6 +544,7 @@ const Dashboard: React.FC = () => {
               clearInterval(botPollRef.current);
               botPollRef.current = null;
             }
+            setIsRunning(false);
           }
         } catch (err) {
           // Silent error - polling will retry
@@ -617,7 +635,7 @@ const Dashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-      const result = await electronAPI.startEarAutomation({ token });
+      const result = await electronAPI.startEarAutomation({ token, apiBaseUrl: API_BASE_URL });
 
       if (result.shared !== undefined) {
         setEarResult({ shared: result.shared, alreadyShared: result.alreadyShared ?? 0, failed: result.failed ?? 0 });
@@ -678,7 +696,7 @@ const Dashboard: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-      const result = await electronAPI.startApplyAutomation({ token });
+      const result = await electronAPI.startApplyAutomation({ token, apiBaseUrl: API_BASE_URL });
 
       if (result.applied !== undefined) {
         setApplyResult({ applied: result.applied, skipped: result.skipped ?? 0, failed: result.failed ?? 0 });
@@ -1048,14 +1066,22 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleDeleteSkill = async (skillId: string) => {
+  const handleDeleteSkill = (skillId: string) => {
+    // Remove locally only — saved on "Save Configuration"
+    setSkills(prev => prev.filter(s => s.id !== skillId));
+    setSuccess('✅ Skill removed (save configuration to persist)');
+    setTimeout(() => setSuccess(null), 2000);
+  };
+
+  const handleDeleteAllSkills = async () => {
+    if (!window.confirm(`Delete all ${skills.length} skills? This cannot be undone.`)) return;
     try {
-      await deleteSkill(skillId);
-      await loadSkills();
-      setSuccess('✅ Skill deleted successfully!');
+      await deleteAllSkills();
+      setSkills([]);
+      setSuccess('✅ All skills deleted successfully!');
       setTimeout(() => setSuccess(null), 2000);
     } catch (err: any) {
-      setError(`❌ Failed to delete skill: ${err.message}`);
+      setError(`❌ Failed to delete all skills: ${err.message}`);
     }
   };
 
@@ -1071,29 +1097,21 @@ const Dashboard: React.FC = () => {
     setShowEditModal(true);
   };
 
-  const handleUpdateSkill = async () => {
+  const handleUpdateSkill = () => {
     if (!editingSkill || !editingSkill.skillName.trim()) {
       toast.error('Skill name is required');
       return;
     }
 
-    try {
-      await updateSkill(editingSkill.id, {
-        skillName: editingSkill.skillName,
-        displayName: editingSkill.displayName,
-        rating: parseFloat(editingSkill.rating) || 0,
-        outOf: parseInt(editingSkill.outOf) || 5,
-        experience: editingSkill.experience
-      });
-
-      toast.success('Skill updated successfully');
-      await loadSkills();
-      setShowEditModal(false);
-      setEditingSkill(null);
-    } catch (error) {
-      console.error('Error updating skill:', error);
-      toast.error('Failed to update skill');
-    }
+    // Update locally only — saved on "Save Configuration"
+    setSkills(prev => prev.map(s =>
+      s.id === editingSkill.id
+        ? { ...s, skillName: editingSkill.skillName.toLowerCase(), displayName: editingSkill.displayName, rating: parseFloat(editingSkill.rating) || 0, outOf: parseInt(editingSkill.outOf) || 5, experience: editingSkill.experience }
+        : s
+    ));
+    toast.success('Skill updated (save configuration to persist)');
+    setShowEditModal(false);
+    setEditingSkill(null);
   };
 
   const handleCancelEdit = () => {
@@ -1120,6 +1138,35 @@ const Dashboard: React.FC = () => {
       setTimeout(() => setSuccess(null), 2000);
     } catch (err: any) {
       setError(`❌ Failed to load default skills: ${err.message}`);
+    }
+  };
+
+  const handleDownloadSkillsTemplate = async () => {
+    try {
+      const blob = await downloadSkillsTemplate();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'skills_template.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(`❌ Failed to download template: ${err.message}`);
+    }
+  };
+
+  const handleImportSkillsXlsx = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const result = await importSkillsXlsx(file);
+      await loadSkills();
+      setSuccess(`✅ ${result.message}`);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(`❌ Failed to import skills: ${err.message}`);
+    } finally {
+      if (xlsxInputRef.current) xlsxInputRef.current.value = '';
     }
   };
 
@@ -1152,43 +1199,30 @@ const Dashboard: React.FC = () => {
             <div className="flex gap-1 mb-6 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit">
               <button
                 onClick={() => setJobEngineTab('engine')}
-                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  jobEngineTab === 'engine'
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${jobEngineTab === 'engine'
                     ? 'bg-gradient-to-r from-neon-blue/20 to-blue-500/10 text-neon-blue border border-neon-blue/30 shadow-[0_0_12px_rgba(0,243,255,0.15)]'
                     : 'text-gray-400 hover:text-gray-200'
-                }`}
+                  }`}
               >
                 <Filter className="w-4 h-4" /> Smart Apply
               </button>
               <button
                 onClick={() => setJobEngineTab('shareinterest')}
-                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  jobEngineTab === 'shareinterest'
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${jobEngineTab === 'shareinterest'
                     ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/10 text-green-400 border border-green-500/30 shadow-[0_0_12px_rgba(34,197,94,0.15)]'
                     : 'text-gray-400 hover:text-gray-200'
-                }`}
+                  }`}
               >
                 <ThumbsUp className="w-4 h-4" /> Share Interest
               </button>
               <button
                 onClick={() => setJobEngineTab('profileupdate')}
-                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  jobEngineTab === 'profileupdate'
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${jobEngineTab === 'profileupdate'
                     ? 'bg-gradient-to-r from-purple-500/20 to-violet-500/10 text-purple-400 border border-purple-500/30 shadow-[0_0_12px_rgba(168,85,247,0.15)]'
                     : 'text-gray-400 hover:text-gray-200'
-                }`}
+                  }`}
               >
                 <RotateCw className="w-4 h-4" /> Profile Update
-              </button>
-              <button
-                onClick={() => setJobEngineTab('jobapply')}
-                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  jobEngineTab === 'jobapply'
-                    ? 'bg-gradient-to-r from-orange-500/20 to-amber-500/10 text-orange-400 border border-orange-500/30 shadow-[0_0_12px_rgba(249,115,22,0.15)]'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                <Rocket className="w-4 h-4" /> Quick Apply
               </button>
             </div>
 
@@ -1276,12 +1310,11 @@ const Dashboard: React.FC = () => {
                     {earLogs.map((log, idx) => (
                       <div
                         key={idx}
-                        className={`${
-                          log.type === 'error' ? 'text-red-400' :
-                          log.type === 'success' ? 'text-green-400' :
-                          log.type === 'warning' ? 'text-yellow-400' :
-                          'text-gray-300'
-                        } break-words font-mono leading-relaxed flex gap-3 p-1 rounded hover:bg-white/5`}
+                        className={`${log.type === 'error' ? 'text-red-400' :
+                            log.type === 'success' ? 'text-green-400' :
+                              log.type === 'warning' ? 'text-yellow-400' :
+                                'text-gray-300'
+                          } break-words font-mono leading-relaxed flex gap-3 p-1 rounded hover:bg-white/5`}
                       >
                         <span className="opacity-40 text-xs w-20 shrink-0 pt-0.5">{log.timestamp}</span>
                         <span className="flex-1">{log.message}</span>
@@ -1388,12 +1421,11 @@ const Dashboard: React.FC = () => {
                     {applyLogs.map((log, idx) => (
                       <div
                         key={idx}
-                        className={`${
-                          log.type === 'error' ? 'text-red-400' :
-                          log.type === 'success' ? 'text-green-400' :
-                          log.type === 'warning' ? 'text-yellow-400' :
-                          'text-gray-300'
-                        } break-words font-mono leading-relaxed flex gap-3 p-1 rounded hover:bg-white/5`}
+                        className={`${log.type === 'error' ? 'text-red-400' :
+                            log.type === 'success' ? 'text-green-400' :
+                              log.type === 'warning' ? 'text-yellow-400' :
+                                'text-gray-300'
+                          } break-words font-mono leading-relaxed flex gap-3 p-1 rounded hover:bg-white/5`}
                       >
                         <span className="opacity-40 text-xs w-20 shrink-0 pt-0.5">{log.timestamp}</span>
                         <span className="flex-1">{log.message}</span>
@@ -1412,7 +1444,7 @@ const Dashboard: React.FC = () => {
             {/* ── JOB ENGINE TAB ── */}
             {jobEngineTab === 'engine' && <div className="flex flex-col bg-black rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
 
-              {/* Mock Browser Header - Consistent Theme */}
+              {/* Mock Browser Header */}
               <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700 p-3 flex items-center gap-4 shadow-lg">
                 <div className="flex gap-2 ml-3">
                   <div className="w-3.5 h-3.5 rounded-full bg-red-500/80 hover:bg-red-600 transition-colors cursor-pointer"></div>
@@ -1420,14 +1452,14 @@ const Dashboard: React.FC = () => {
                   <div className="w-3.5 h-3.5 rounded-full bg-green-500/80 hover:bg-green-600 transition-colors cursor-pointer"></div>
                 </div>
 
-                {/* Address Bar - Consistent Style */}
+                {/* Address Bar */}
                 <div className="flex-1 bg-dark-900 rounded-lg px-4 py-2.5 flex items-center gap-3 text-sm text-gray-300 font-mono border border-gray-700 shadow-inner">
                   <Globe className="w-4 h-4 text-gray-500" />
                   <span className="flex-1 truncate">{isAutomating ? browserState.url : 'about:blank'}</span>
                   {isAutomating && <RotateCw className="w-4 h-4 animate-spin text-neon-blue" />}
                 </div>
 
-                {/* Run Controls - Consistent Theme */}
+                {/* Run Controls */}
                 <div className="flex gap-3 mr-2">
                   {!isRunning ? (
                     <button
@@ -1447,42 +1479,22 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Browser Viewport - Consistent Theme */}
+              {/* Browser Viewport */}
               <div className="h-[500px] bg-gradient-to-br from-gray-900 via-black to-gray-900 relative flex items-center justify-center overflow-hidden">
-                {/* Subtle Grid Background */}
-                <div className="absolute inset-0 opacity-[0.02]" style={{
-                  backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
-                  backgroundSize: '40px 40px',
-                  animation: 'grid-pulse 4s ease-in-out infinite'
-                }}></div>
-
-                {/* Subtle Scan Lines */}
-                <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{
-                  backgroundImage: 'repeating-linear-gradient(0deg, rgba(0,243,255,0.1) 0px, transparent 2px, transparent 4px)',
-                  animation: 'scan-line 10s linear infinite'
-                }}></div>
-
-                {/* Radial Glow */}
-                <div className="absolute inset-0 opacity-20" style={{
-                  background: 'radial-gradient(circle at center, rgba(0,243,255,0.08) 0%, transparent 70%)'
-                }}></div>
+                <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+                <div className="absolute inset-0 opacity-20" style={{ background: 'radial-gradient(circle at center, rgba(0,243,255,0.08) 0%, transparent 70%)' }}></div>
 
                 {isRunning ? (
                   <div className="text-center space-y-6 p-8 z-10">
-                    {/* Loader - Consistent Theme */}
                     <div className="relative">
                       <Loader2 className="w-20 h-20 mx-auto animate-spin text-neon-blue drop-shadow-[0_0_15px_rgba(0,243,255,0.8)]" />
                       <div className="absolute inset-0 w-20 h-20 mx-auto rounded-full bg-neon-blue/20 animate-ping"></div>
                     </div>
-
-                    {/* Loading Skeleton */}
                     <div className="space-y-3">
                       <div className="h-5 w-64 bg-gray-800 rounded-lg mx-auto animate-pulse shadow-lg"></div>
                       <div className="h-4 w-48 bg-gray-800 rounded-lg mx-auto animate-pulse shadow-lg delay-75"></div>
                       <div className="h-4 w-56 bg-gray-800 rounded-lg mx-auto animate-pulse shadow-lg delay-100"></div>
                     </div>
-
-                    {/* Status Badge */}
                     <div className="mt-8 px-6 py-3 bg-dark-800/80 backdrop-blur-sm rounded-xl border border-neon-blue/30 inline-block text-sm text-neon-blue font-semibold shadow-[0_0_20px_rgba(0,243,255,0.3)]">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-neon-blue rounded-full animate-pulse"></div>
@@ -1492,37 +1504,18 @@ const Dashboard: React.FC = () => {
                   </div>
                 ) : (
                   <div className="text-center space-y-6 p-8 z-10">
-                    {/* Idle Icon - Subtle System Animation */}
                     <div className="relative">
-                      {/* Outer Pulse Ring */}
                       <div className="absolute inset-0 w-28 h-28 mx-auto rounded-full border-2 border-neon-blue/20 animate-ping" style={{ animationDuration: '3s' }}></div>
-
-                      {/* Main Icon Container */}
-                      <div className="relative w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-gray-800 to-gray-900 border-2 border-gray-700 flex items-center justify-center shadow-2xl" style={{ animation: 'glow-pulse 4s ease-in-out infinite' }}>
-                        {/* System Icon with Subtle Glitch */}
-                        <div className="relative">
-                          <Activity className="w-12 h-12 text-gray-500" style={{ animation: 'glitch 6s infinite', filter: 'drop-shadow(0 0 4px rgba(0,243,255,0.3))' }} />
-                          {/* Ghost layer for depth */}
-                          <Activity className="w-12 h-12 text-neon-blue absolute top-0 left-0" style={{ animation: 'glitch-shift 6s infinite', opacity: 0.15 }} />
-                        </div>
-
-                        {/* Subtle Scan Line */}
-                        <div className="absolute inset-0 overflow-hidden rounded-full">
-                          <div className="absolute w-full h-0.5 bg-gradient-to-r from-transparent via-neon-blue/30 to-transparent" style={{ animation: 'scan 4s linear infinite' }}></div>
-                        </div>
+                      <div className="relative w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-gray-800 to-gray-900 border-2 border-gray-700 flex items-center justify-center shadow-2xl">
+                        <Activity className="w-12 h-12 text-gray-500" style={{ filter: 'drop-shadow(0 0 4px rgba(0,243,255,0.3))' }} />
                       </div>
-
-                      {/* Minimal Corner Indicators */}
-                      <div className="absolute -top-1 -left-1 text-gray-700 text-lg font-mono" style={{ animation: 'blink 2s step-end infinite' }}>[</div>
-                      <div className="absolute -top-1 -right-1 text-gray-700 text-lg font-mono" style={{ animation: 'blink 2s step-end infinite' }}>]</div>
-                      <div className="absolute -bottom-1 -left-1 text-gray-700 text-lg font-mono" style={{ animation: 'blink 2s step-end infinite' }}>[</div>
-                      <div className="absolute -bottom-1 -right-1 text-gray-700 text-lg font-mono" style={{ animation: 'blink 2s step-end infinite' }}>]</div>
+                      <div className="absolute -top-1 -left-1 text-gray-700 text-lg font-mono">[</div>
+                      <div className="absolute -top-1 -right-1 text-gray-700 text-lg font-mono">]</div>
+                      <div className="absolute -bottom-1 -left-1 text-gray-700 text-lg font-mono">[</div>
+                      <div className="absolute -bottom-1 -right-1 text-gray-700 text-lg font-mono">]</div>
                     </div>
-
                     <div className="space-y-2">
-                      <h3 className="text-2xl font-bold text-gray-400 font-heading">
-                        <span style={{ animation: 'flicker 4s infinite' }}>Ready to Start</span>
-                      </h3>
+                      <h3 className="text-2xl font-bold text-gray-400 font-heading">Ready to Start</h3>
                       <p className="text-sm text-gray-600 max-w-md mx-auto">
                         Click the START AUTOMATION button to begin the automation process
                       </p>
@@ -1530,7 +1523,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 )}
 
-                {/* Status Overlay - Consistent Theme */}
+                {/* Status Overlay */}
                 <div className="absolute bottom-4 right-4 px-4 py-2 bg-black/90 backdrop-blur-md text-xs text-green-400 font-mono border border-green-500/30 rounded-lg shadow-[0_0_15px_rgba(34,197,94,0.2)]">
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`}></div>
@@ -1538,79 +1531,54 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Error/Success Alerts - Consistent Theme */}
+                {/* Error Alert */}
                 {error && (
-                  <div className="absolute top-4 left-1/2 transform -translate-x-1/2 max-w-2xl w-full bg-red-500/10 backdrop-blur-md border border-red-500/30 px-6 py-4 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.3)] z-20 animate-in slide-in-from-top">
+                  <div className="absolute top-4 left-1/2 transform -translate-x-1/2 max-w-2xl w-full bg-red-500/10 backdrop-blur-md border border-red-500/30 px-6 py-4 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.3)] z-20">
                     <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 mt-0.5">
-                        <AlertCircle className="w-6 h-6 text-red-400" />
-                      </div>
+                      <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" />
                       <div className="flex-1">
                         <h4 className="font-bold text-red-400 mb-1 text-lg">Unable to Start Automation</h4>
                         <p className="text-red-300 text-sm mb-3">{error.replace('❌ Automation error: ', '').replace('Failed to run automation: ', '').replace('Failed to start automation: ', '').replace('❌ Bot error: ', '').replace('Failed to run bot: ', '').replace('Failed to start bot: ', '')}</p>
                         {error.includes('credentials') && (
-                          <button
-                            onClick={() => {
-                              setActiveTab('config');
-                              setError(null);
-                            }}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm transition-all"
-                          >
-                            <Key className="w-4 h-4" />
-                            Go to Job Profile Settings
+                          <button onClick={() => { setActiveTab('config'); setError(null); }} className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm transition-all">
+                            <Key className="w-4 h-4" /> Go to Job Profile Settings
                           </button>
                         )}
                       </div>
-                      <button
-                        onClick={() => setError(null)}
-                        className="flex-shrink-0 text-red-400 hover:text-red-300 transition-colors"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
+                      <button onClick={() => setError(null)} className="flex-shrink-0 text-red-400 hover:text-red-300"><X className="w-5 h-5" /></button>
                     </div>
                   </div>
                 )}
 
+                {/* Success Alert */}
                 {success && (
-                  <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-green-500/10 backdrop-blur-md border border-green-500/30 px-6 py-4 rounded-xl flex items-center gap-3 text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.3)] z-20 animate-in slide-in-from-top">
+                  <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-green-500/10 backdrop-blur-md border border-green-500/30 px-6 py-4 rounded-xl flex items-center gap-3 text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.3)] z-20">
                     <CheckCircle className="w-5 h-5" />
                     <span className="font-medium">{success}</span>
                   </div>
                 )}
               </div>
 
-              {/* Terminal Footer - Consistent Theme */}
+              {/* Terminal Footer */}
               <div className="bg-black border-t border-gray-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
                 <div className="px-6 py-2 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-gray-700 flex justify-between items-center">
                   <span className="text-xs text-gray-400 font-mono uppercase tracking-wider flex items-center gap-2">
                     <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
                     {isFilterRunning ? 'Filter Automation Logs' : 'Automation Logs'} {botLogs.length > 0 && `(${botLogs.length})`}
-                    {isFilterRunning && <span className="ml-2 text-neon-green animate-pulse flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 bg-neon-green rounded-full"></div>
-                      RUNNING
-                    </span>}
+                    {isFilterRunning && <span className="ml-2 text-neon-green animate-pulse flex items-center gap-1"><div className="w-1.5 h-1.5 bg-neon-green rounded-full"></div> RUNNING</span>}
                   </span>
                   <span className="text-xs text-gray-600 font-mono">{isFilterRunning ? 'node server/autoFilter.js' : 'node server/autoApply.js'}</span>
                 </div>
-                <div
-                  ref={logContainerRef}
-                  className="h-72 overflow-y-auto p-6 font-mono text-sm space-y-2 bg-black text-gray-300 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-gray-900"
-                >
+                <div ref={logContainerRef} className="h-72 overflow-y-auto p-6 font-mono text-sm space-y-2 bg-black text-gray-300 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-gray-900">
                   {botLogs.length === 0 && logs.length === 0 && (
                     <div className="text-gray-600 italic flex items-center gap-2">
                       <div className="w-1 h-1 bg-gray-700 rounded-full"></div>
                       Automation ready. Click 'START AUTOMATION' to begin.
                     </div>
                   )}
-
-                  {/* Show bot logs if available, otherwise show context logs */}
                   {botLogs.length > 0 ? (
                     botLogs.map((log, idx) => (
-                      <div key={idx} className={`${log.type === 'error' ? 'text-red-400 bg-red-500/5' :
-                        log.type === 'success' ? 'text-green-400 bg-green-500/5' :
-                          log.type === 'warning' ? 'text-yellow-400 bg-yellow-500/5' :
-                            'text-gray-300'
-                        } break-words font-mono leading-relaxed flex gap-3 p-2 rounded hover:bg-white/5 transition-colors`}>
+                      <div key={idx} className={`${log.type === 'error' ? 'text-red-400 bg-red-500/5' : log.type === 'success' ? 'text-green-400 bg-green-500/5' : log.type === 'warning' ? 'text-yellow-400 bg-yellow-500/5' : 'text-gray-300'} break-words font-mono leading-relaxed flex gap-3 p-2 rounded hover:bg-white/5 transition-colors`}>
                         <span className="opacity-40 text-xs w-20 shrink-0 pt-0.5">{log.timestamp}</span>
                         <span className="flex-1">{log.message}</span>
                       </div>
@@ -1623,7 +1591,6 @@ const Dashboard: React.FC = () => {
                       </div>
                     ))
                   )}
-
                   {isRunning && (
                     <div className="flex items-center gap-2 text-neon-green mt-3 animate-pulse pl-[5.5rem]">
                       <span className="w-2 h-5 bg-neon-green shadow-[0_0_10px_rgba(0,243,255,0.8)]"></span>
@@ -2017,18 +1984,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Other Job Profile Fields */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-1">
-                      Target Role <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={configForm.targetRole}
-                      onChange={(e) => setConfigForm({ ...configForm, targetRole: e.target.value })}
-                      className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 px-4 text-white text-sm focus:border-neon-blue outline-none"
-                    />
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-xs text-gray-400 uppercase font-bold">Location</label>
                     <div className="relative">
@@ -2051,7 +2007,7 @@ const Dashboard: React.FC = () => {
                         type="date"
                         value={configForm.dob}
                         onChange={(e) => setConfigForm({ ...configForm, dob: e.target.value })}
-                        className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white text-sm focus:border-neon-blue outline-none"
+                        className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white text-sm focus:border-neon-blue outline-none [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70"
                         placeholder="DD/MM/YYYY"
                       />
                     </div>
@@ -2109,59 +2065,29 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-1">
-                    Search Keywords <span className="text-red-400">*</span>
-                  </label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
-                    <textarea
-                      value={configForm.keywords}
-                      onChange={(e) => setConfigForm({ ...configForm, keywords: e.target.value })}
-                      placeholder="Software Engineer"
-                      className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 pl-10 pr-4 text-white text-sm focus:border-neon-blue outline-none min-h-[60px]"
+                {/* Years of Exp + Max Pages */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs text-gray-400 uppercase font-bold">Years of Exp</label>
+                    <input
+                      type="text"
+                      value={configForm.yearsOfExperience ?? ''}
+                      onChange={(e) => setConfigForm({ ...configForm, yearsOfExperience: e.target.value })}
+                      className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 px-4 text-white text-sm focus:border-neon-blue outline-none"
+                      placeholder="e.g. 3"
                     />
                   </div>
-                </div>
-
-                {/* Automation Settings */}
-                <div className="bg-dark-900/50 p-6 rounded-xl border border-dashed border-gray-600">
-                  <h3 className="text-white font-bold mb-4 flex items-center gap-2 text-sm">
-                    <Activity className="text-neon-blue w-4 h-4" /> Automation Settings
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-xs text-gray-400 uppercase font-bold">Search Years of Experience</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="50"
-                        step="1"
-                        value={configForm.yearsOfExperience ?? 0}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value);
-                          if (!isNaN(value) && value >= 0 && value <= 50) {
-                            setConfigForm({ ...configForm, yearsOfExperience: value });
-                          }
-                        }}
-                        className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 px-4 text-white text-sm focus:border-neon-blue outline-none"
-                        placeholder="0"
-                      />
-                      <p className="text-[10px] text-gray-500">Used for job filtering and match calculation</p>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs text-gray-400 uppercase font-bold">Max Pages to Process</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="50"
-                        value={configForm.maxPages || 5}
-                        onChange={(e) => setConfigForm({ ...configForm, maxPages: parseInt(e.target.value) || 5 })}
-                        className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 px-4 text-white text-sm focus:border-neon-blue outline-none"
-                        placeholder="5"
-                      />
-                      <p className="text-xs text-gray-500">Number of job listing pages to process (1-50)</p>
-                    </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-gray-400 uppercase font-bold">Max Pages to Process</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={configForm.maxPages || 5}
+                      onChange={(e) => setConfigForm({ ...configForm, maxPages: parseInt(e.target.value) || 5 })}
+                      className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 px-4 text-white text-sm focus:border-neon-blue outline-none"
+                      placeholder="5"
+                    />
                   </div>
                 </div>
 
@@ -2189,17 +2115,49 @@ const Dashboard: React.FC = () => {
 
                 {/* Skills Section */}
                 <div className="bg-dark-900/50 p-6 rounded-xl border border-dashed border-gray-600 space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <h3 className="text-white font-bold flex items-center gap-2 text-sm">
                       <Star className="text-neon-purple w-4 h-4" /> Technical Skills
                     </h3>
-                    <button
-                      type="button"
-                      onClick={handleLoadDefaultSkills}
-                      className="text-xs bg-dark-800 hover:bg-dark-700 text-neon-blue px-3 py-1.5 rounded-lg border border-neon-blue/30 transition-colors"
-                    >
-                      Load Default Skills
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleLoadDefaultSkills}
+                        className="text-xs bg-dark-800 hover:bg-dark-700 text-neon-blue px-3 py-1.5 rounded-lg border border-neon-blue/30 transition-colors"
+                      >
+                        Load Default Skills
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDownloadSkillsTemplate}
+                        className="text-xs bg-dark-800 hover:bg-dark-700 text-green-400 px-3 py-1.5 rounded-lg border border-green-400/30 transition-colors flex items-center gap-1"
+                      >
+                        <Download className="w-3 h-3" /> Download Template
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => xlsxInputRef.current?.click()}
+                        className="text-xs bg-dark-800 hover:bg-dark-700 text-yellow-400 px-3 py-1.5 rounded-lg border border-yellow-400/30 transition-colors flex items-center gap-1"
+                      >
+                        <UploadCloud className="w-3 h-3" /> Upload XLSX
+                      </button>
+                      {skills.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleDeleteAllSkills}
+                          className="text-xs bg-dark-800 hover:bg-red-900/40 text-red-400 px-3 py-1.5 rounded-lg border border-red-400/30 transition-colors flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3 h-3" /> Delete All
+                        </button>
+                      )}
+                      <input
+                        ref={xlsxInputRef}
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        onChange={handleImportSkillsXlsx}
+                      />
+                    </div>
                   </div>
 
                   {/* Add New Skill Form */}
@@ -2412,6 +2370,23 @@ const Dashboard: React.FC = () => {
                     <h3 className="text-white font-bold flex items-center gap-2 text-sm">
                       <Filter className="text-neon-green w-4 h-4" /> Job Search Filters
                     </h3>
+                  </div>
+
+                  {/* Job Search Keywords Input */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-2">
+                      <Search className="w-3 h-3" /> Job Search Keywords
+                    </label>
+                    <input
+                      type="text"
+                      value={configForm.keywords}
+                      onChange={(e) => setConfigForm({ ...configForm, keywords: e.target.value })}
+                      className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 px-4 text-white text-sm focus:border-neon-green outline-none"
+                      placeholder="e.g. React Developer, Python, Java"
+                    />
+                    <p className="text-[10px] text-gray-500">
+                      Enter keywords to search for jobs. Leave empty to search all jobs.
+                    </p>
                   </div>
 
                   {/* Job Search URL Input */}
@@ -3075,12 +3050,6 @@ const Dashboard: React.FC = () => {
                       <thead className="bg-black/40">
                         <tr className="text-gray-400 text-xs uppercase border-b border-white/10">
                           <th className="px-4 py-3 font-semibold">Date & Time</th>
-                          <th className="px-4 py-3 font-semibold">Job Title</th>
-                          <th className="px-4 py-3 font-semibold">Company</th>
-                          <th className="px-4 py-3 font-semibold">Location</th>
-                          <th className="px-4 py-3 font-semibold">Experience</th>
-                          <th className="px-4 py-3 font-semibold">Salary</th>
-                          <th className="px-4 py-3 text-center font-semibold">Score</th>
                           <th className="px-4 py-3 font-semibold">Status</th>
                           <th className="px-4 py-3 font-semibold">Apply Type</th>
                           <th className="px-4 py-3 font-semibold text-center">App Status</th>
@@ -3097,49 +3066,9 @@ const Dashboard: React.FC = () => {
                               {formatDate(record.datetime)}
                             </td>
                             <td className="px-4 py-3 text-sm">
-                              <div className="flex flex-col">
-                                <span className="text-white font-medium">{record.jobTitle || 'Unknown Position'}</span>
-                                {record.earlyApplicant && (
-                                  <span className="text-xs text-green-400 mt-1">🔥 Early Applicant</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              <div className="flex flex-col">
-                                <span className="text-white font-medium">{record.companyName || 'Unknown Company'}</span>
-                                {record.companyRating && (
-                                  <span className="text-xs text-yellow-400 mt-1">⭐ {record.companyRating}</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-300">
-                              {record.location || 'N/A'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-300">
-                              {record.experienceRequired || 'N/A'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-300">
-                              {record.salary || 'Not Disclosed'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-center">
-                              <div className="flex items-center gap-2">
-                                <div className="flex-1 bg-dark-900 rounded-full h-2 overflow-hidden">
-                                  <div
-                                    className={`h-full ${record.matchScore >= 4 ? 'bg-green-500' : record.matchScore >= 3 ? 'bg-yellow-500' : 'bg-red-500'
-                                      }`}
-                                    style={{ width: `${(record.matchScore / record.matchScoreTotal) * 100}%` }}
-                                  ></div>
-                                </div>
-                                <span className="font-bold text-neon-purple whitespace-nowrap">
-                                  {record.matchScore}/{record.matchScoreTotal}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm">
                               <span className={`px-2 py-1 rounded-full text-xs font-semibold ${record.matchStatus === 'Good Match'
                                 ? 'bg-green-900/30 text-green-400 border border-green-500/50'
-                                : 'bg-red-900/30 text-red-400 border border-red-500/50'
-                                }`}>
+                                : 'bg-red-900/30 text-red-400 border border-red-500/50'}`}>
                                 {record.matchStatus}
                               </span>
                             </td>
@@ -3148,8 +3077,7 @@ const Dashboard: React.FC = () => {
                                 ? 'bg-blue-900/30 text-blue-400 border border-blue-500/50'
                                 : record.applyType === 'External Apply'
                                   ? 'bg-purple-900/30 text-purple-400 border border-purple-500/50'
-                                  : 'bg-gray-900/30 text-gray-400 border border-gray-500/50'
-                                }`}>
+                                  : 'bg-gray-900/30 text-gray-400 border border-gray-500/50'}`}>
                                 {record.applyType}
                               </span>
                             </td>
@@ -3157,8 +3085,7 @@ const Dashboard: React.FC = () => {
                               {record.applicationStatus ? (
                                 <span className={`px-2 py-1 rounded-full text-xs font-semibold ${record.applicationStatus === 'Applied'
                                   ? 'bg-green-900/30 text-green-400 border border-green-500/50'
-                                  : 'bg-yellow-900/30 text-yellow-400 border border-yellow-500/50'
-                                  }`}>
+                                  : 'bg-yellow-900/30 text-yellow-400 border border-yellow-500/50'}`}>
                                   {record.applicationStatus}
                                 </span>
                               ) : (

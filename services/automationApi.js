@@ -144,7 +144,8 @@ export async function runBot(options = {}) {
         const result = await window.electronAPI.startAutomation({
             ...options,
             token,
-            userId
+            userId,
+            apiBaseUrl: API_BASE_URL
         });
 
         return result;
@@ -391,6 +392,30 @@ export async function updateSkill(skillId, skillData) {
  */
 export async function deleteAllSkills() {
     return apiCall('/skills', 'DELETE');
+}
+
+/**
+ * Download skills XLSX template file
+ * Returns a Blob (binary) — do NOT use apiCall (it parses JSON)
+ */
+export async function downloadSkillsTemplate() {
+    const url = `${API_BASE_URL}/skills/template`;
+    const token = getToken();
+    const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`Failed to download template: HTTP ${response.status}`);
+    return response.blob();
+}
+
+/**
+ * Import skills from an XLSX file
+ * @param {File} file - XLSX file selected by user
+ */
+export async function importSkillsXlsx(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiCall('/skills/import', 'POST', formData);
 }
 
 /**

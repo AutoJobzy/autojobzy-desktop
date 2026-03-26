@@ -18,7 +18,7 @@
 
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
-import mysql from 'mysql2/promise';
+import Skill from './models/Skill.js';
 import AgenticAnswerService from './services/AgenticAnswerService.js';
 
 dotenv.config();
@@ -59,20 +59,26 @@ export function setUserAnswersData(data) {
 export const setUserData = setUserAnswersData;
 
 /**
- * Initialize skills from database for a specific user
+ * Initialize skills from database for a specific user.
+ * Uses Sequelize connection pool — no new TCP connection created.
  * @param {string} userId - User ID
- * @param {object} dbConfig - Database configuration
  */
-export async function initializeSkillsFromDB(userId, dbConfig) {
+export async function initializeSkillsFromDB(userId) {
     try {
-        const connection = await mysql.createConnection(dbConfig);
-        const [rows] = await connection.execute(
-            "SELECT skill_name, display_name, rating, out_of, experience FROM skills WHERE user_id = ?",
-            [userId]
-        );
-        skillsData = rows;
-        await connection.end();
-        console.log(`✅ Loaded ${rows.length} skills from database for user ${userId}`);
+        const rows = await Skill.findAll({
+            where: { userId },
+            attributes: ['skillName', 'displayName', 'rating', 'outOf', 'experience'],
+            raw: true,
+        });
+        // Normalize to snake_case keys expected by findMatchingSkill
+        skillsData = rows.map(r => ({
+            skill_name: r.skillName,
+            display_name: r.displayName,
+            rating: r.rating,
+            out_of: r.outOf,
+            experience: r.experience,
+        }));
+        console.log(`✅ Loaded ${skillsData.length} skills from DB for user ${userId}`);
     } catch (err) {
         console.error("❌ Error loading skills from DB:", err.message);
         skillsData = [];
@@ -132,7 +138,10 @@ function generateSkillAnswer(question, skill) {
         if (skill.experience) {
             return `${skill.experience}`;
         }
-        return `3 years`;
+        // Skill exists in DB but no experience field — use totalExp - 1 as default
+        const totalExp = parseInt(userAnswersData?.yearsOfExperience) || 0;
+        const defaultExp = Math.max(1, totalExp - 1);
+        return `${defaultExp}`;
     }
 
     // Rating/Proficiency questions
@@ -194,24 +203,147 @@ function formatDateToDDMMYYYY(dateString) {
 export async function getAnswer(question) {
     try {
 
+        // ✅ Normalize question first — remove non-breaking spaces, trim
+        question = (question || '').replace(/[\u00A0\u200B\t]+/g, ' ').trim();
+
+        const lowerQRaw = question.toLowerCase();
+
+        console.log(`[getAnswer] Received: "${question}"`);
+
+        // ✅ DOB — SIMPLEST check: if 'birth', 'dob', or 'date of birth' anywhere in question → return DOB
+        if (lowerQRaw.includes('birth') || lowerQRaw.includes('dob') || lowerQRaw.includes('date of birth')) {
+            const dob = userAnswersData?.dob;
+            if (dob) {
+                const ans = formatDateToDDMMYYYY(dob);
+                console.log(`✓ DOB: "${question}" → "${ans}"`);
+                return ans;
+            }
+            console.log(`⚠️ DOB question but no DOB in DB: "${question}"`);
+            return '';
+        }
+
+        // ✅ DATE-RELATED EARLY DETECTION — catches date questions without '?'
+        // Joining date / when can you join
+        if (lowerQRaw.includes('joining date') || lowerQRaw.includes('date of joining') ||
+            lowerQRaw.includes('when can you join') || lowerQRaw.includes('when will you join') ||
+            lowerQRaw.includes('earliest joining') || lowerQRaw.includes('join by')) {
+            const ans = userAnswersData?.noticePeriod || '';
+            console.log(`✓ Joining Date: "${question}" → "${ans}"`);
+            return ans;
+        }
+
+        // Availability date
+        if (lowerQRaw.includes('availability date') || lowerQRaw.includes('date of availability') ||
+            lowerQRaw.includes('available from') || lowerQRaw.includes('available date')) {
+            const ans = userAnswersData?.availability || userAnswersData?.noticePeriod || '';
+            console.log(`✓ Availability Date: "${question}" → "${ans}"`);
+            return ans;
+        }
+
+        // ✅ INFORMATIONAL MESSAGE DETECTION — silently skip, no "Ignored" log
+        // These are chatbot instructions, not questions requiring text input
+        const informationalPatterns = [
+            'you can choose', 'please choose', 'please select',
+            'upto 10', 'up to 10', 'select upto', 'select up to',
+            'cities that you', 'cities you\'d like', 'cities you would like',
+            'choose your preferred', 'select your preferred'
+        ];
+        const isInformational = informationalPatterns.some(k => lowerQRaw.includes(k));
+        if (isInformational) {
+            console.log(`[getAnswer] Informational message — skipping silently: "${question}"`);
+            return '';
+        }
+
+        // ✅ DIRECT SKILL EXPERIENCE CHECK (most common chatbot pattern)
+        // e.g. "What is your experience working with Angular"
+        // e.g. "How many years of experience do you have in React"
+        if (lowerQRaw.includes('experience') || lowerQRaw.includes('years of experience')) {
+            const matchingSkillDirect = findMatchingSkill(question);
+            if (matchingSkillDirect) {
+                const ans = generateSkillAnswer(question, matchingSkillDirect);
+                console.log(`✓ Direct Skill: "${question}" → "${ans}"`);
+                return ans;
+            }
+            // Skill not in DB but question is about skill experience
+            if (lowerQRaw.includes('working') || lowerQRaw.includes(' with ') ||
+                lowerQRaw.includes(' in ') || lowerQRaw.includes(' using ')) {
+                const totalExp = parseInt(userAnswersData?.yearsOfExperience) || 0;
+                const ans = `${Math.max(1, totalExp - 1)}`;
+                console.log(`✓ Direct Skill (not in DB): "${question}" → "${ans}"`);
+                return ans;
+            }
+        }
+
+        // ✅ Location early detection - before isValidInterviewQuestion filter
+        // (Chatbot often sends "Current Location" without '?' — same fix as DOB)
+        const locationKeywords = [
+            'current location', 'current city', 'current place', 'current residence',
+            'present location', 'present city', 'residential location', 'residential city',
+            'preferred location', 'preferred city', 'work location', 'home location',
+            'hometown', 'home town', 'home city', 'where are you based',
+            'where do you live', 'where are you located', 'where are you currently',
+            'place of residence', 'office location', 'job location',
+            'select the city', 'select your city', 'select city',
+            'residing', 'relocate to', 'relocation',
+            'location', 'city'
+        ];
+        const isLocationQuestion = locationKeywords.some(k => lowerQRaw.includes(k));
+
+        if (isLocationQuestion) {
+            const loc = userAnswersData?.location;
+            if (loc && loc.trim() !== '') {
+                console.log(`✓ Location Question: "${question}" → "${loc}" (from DB)`);
+                return loc;
+            }
+            console.log(`⚠️  Location question found but no location in DB: "${question}"`);
+            return '';
+        }
+
+        // ✅ YES/NO early detection - before validation filter
+        // Questions like "Are you ok with permanent?", "Are you comfortable with contract?" etc.
+        const yesNoKeywords = [
+            'are you ok', 'are you comfortable', 'are you willing', 'are you open',
+            'are you fine', 'are you agreeable', 'are you available',
+            'ok with permanent', 'ok with contract', 'ok with full time', 'ok with fulltime',
+            'comfortable with', 'willing to', 'open to relocation', 'open to work',
+            'do you agree', 'do you accept', 'would you be ok', 'would you be willing',
+            'can you work', 'can you join', 'are you interested'
+        ];
+        const isYesNoQuestion = yesNoKeywords.some(k => lowerQRaw.includes(k));
+        if (isYesNoQuestion) {
+            console.log(`✓ Yes/No Question: "${question}" → "Yes"`);
+            return 'Yes';
+        }
+
+        // ✅ Skill early detection - before isValidInterviewQuestion filter
+        // Normalize whitespace first (chatbot may send non-breaking spaces \u00A0)
+        const lowerQSkill = lowerQRaw.replace(/\s+/g, ' ').trim();
+        const isSkillExpQuestion =
+            (lowerQSkill.includes('experience') || lowerQSkill.includes('years') || lowerQSkill.includes('worked')) &&
+            /\b(with|in|using|on|working)\b/.test(lowerQSkill);
+
+        if (isSkillExpQuestion) {
+            const matchingSkillEarly = findMatchingSkill(question);
+            if (matchingSkillEarly) {
+                const skillAnswer = generateSkillAnswer(question, matchingSkillEarly);
+                console.log(`✓ Skill Question (early): "${question}" → "${skillAnswer}" (from skills DB)`);
+                return skillAnswer;
+            }
+            // Skill not in DB - use totalExp - 1
+            const totalExpEarly = parseInt(userAnswersData?.yearsOfExperience) || 0;
+            const defaultExpEarly = Math.max(1, totalExpEarly - 1);
+            console.log(`✓ Skill Question (early): "${question}" → "${defaultExpEarly}" (skill not in DB)`);
+            return `${defaultExpEarly}`;
+        }
 
         // ✅ Validate question first
         if (!isValidInterviewQuestion(question)) {
             console.log(`⚠️ Ignored non-interview question: "${question}"`);
-            return ''; // Empty answer, or you can return a polite message like:
-            // return 'This does not seem like a valid interview question.';
+            return '';
         }
 
         // DISABLED AGENTIC AI - Using pattern matching only
-        // if (agenticService) {
-        //     try {
-        //         const result = await agenticService.getAnswer(question);
-        //         console.log(`🤖 Agentic: "${result.answer}" (confidence: ${result.confidence}%)`);
-        //         return result.answer;
-        //     } catch (agenticError) {
-        //         console.error('⚠️ Agentic service error, falling back to legacy system:', agenticError.message);
-        //     }
-        // }
+        // if (agenticService) { ... }
 
         // Use pattern matching logic
         // STEP 1: Check if question is skill-related
@@ -222,7 +354,18 @@ export async function getAnswer(question) {
             return skillAnswer;
         }
 
-        // STEP 2: Get data from database if available, else use defaults
+        // STEP 1.5: Skill not found in DB — if question is skill-specific experience, use totalExp - 1
+        const isSkillExpQuestionLate =
+            (lowerQSkill.includes('experience') || lowerQSkill.includes('years') || lowerQSkill.includes('worked')) &&
+            (lowerQSkill.includes(' with ') || lowerQSkill.includes(' in ') || lowerQSkill.includes(' using ') || lowerQSkill.includes(' on '));
+
+        if (isSkillExpQuestionLate) {
+            const totalExp = parseInt(userAnswersData?.yearsOfExperience) || 0;
+            const defaultExp = Math.max(1, totalExp - 1);
+            console.log(`✓ Question: "${question}" → "${defaultExp}" (skill not in DB, using yearsOfExp-1)`);
+            return `${defaultExp}`;
+        }
+
         // STEP 2: Get data from database (NO DEFAULTS)
         const name = userAnswersData?.name;
         const currentCTC = userAnswersData?.currentCTC;
@@ -284,7 +427,34 @@ export async function getAnswer(question) {
             experience: () => `${yearsOfExperience} years`,
             totalExperience: () => `${yearsOfExperience} years`,
 
-            // Location
+            // Location — specific multi-word keys first, then generic fallbacks
+            'current location': () => location || '',
+            'current city': () => location || '',
+            'current place': () => location || '',
+            'current residence': () => location || '',
+            'place of residence': () => location || '',
+            'residential location': () => location || '',
+            'residential city': () => location || '',
+            'residential address': () => location || '',
+            'present location': () => location || '',
+            'present city': () => location || '',
+            'where are you based': () => location || '',
+            'where do you live': () => location || '',
+            'where do you currently live': () => location || '',
+            'where are you located': () => location || '',
+            'where are you currently located': () => location || '',
+            'where are you currently residing': () => location || '',
+            'preferred location': () => location || '',
+            'preferred city': () => location || '',
+            'preferred work location': () => location || '',
+            'work location': () => location || '',
+            'office location': () => location || '',
+            'job location': () => location || '',
+            'home location': () => location || '',
+            'home city': () => location || '',
+            'hometown': () => location || '',
+            'home town': () => location || '',
+            // generic fallbacks
             location: () => location || '',
             city: () => location || '',
             state: () => 'Maharashtra',
@@ -300,15 +470,16 @@ export async function getAnswer(question) {
             faceToFace: () => availability || '',
             meeting: () => availability || '',
 
-            // Salary - Short answers (just numbers)
-            currentSalary: () => currentCTC || '',
-            salary: () => currentCTC || '',
-            currentctc: () => currentCTC || '',
-            ctc: () => currentCTC || '',
-
-            expectedSalary: () => expectedCTC || '',
-            expectedctc: () => expectedCTC || '',
+            // Salary - specific checks FIRST (expected before current, to avoid wrong match)
+            'expected salary': () => expectedCTC || '',
+            'expected ctc': () => expectedCTC || '',
+            'hike': () => expectedCTC || '',
             expectation: () => expectedCTC || '',
+            'current salary': () => currentCTC || '',
+            'current ctc': () => currentCTC || '',
+            // generic fallbacks — only reached if neither 'expected' nor 'current' matched above
+            salary: () => currentCTC || '',
+            ctc: () => currentCTC || '',
 
             // Interview
             interviewMode: () => 'Online',
@@ -381,21 +552,26 @@ export function getResumeText() {
 function isValidInterviewQuestion(question) {
     if (!question || question.trim() === '') return false;
 
-    // Ignore greetings or generic messages
+    // Ignore greetings or generic messages (NOT '?' check — chatbot forms rarely end with '?')
     const greetings = [
-        'hi', 'hello', 'thank you', 'kindly answer', 'please answer', 'showing interest'
+        'hi ', 'hello ', 'thank you', 'thanks', 'showing interest',
+        'congratulations', 'great job', 'well done'
     ];
 
-    const lowerQ = question.toLowerCase();
-    for (const greet of greetings) {
-        if (lowerQ.includes(greet)) {
-            return false; // It's a greeting or non-question
-        }
+    const lowerQ = question.toLowerCase().trim();
+
+    // ✅ Always treat DOB/date-of-birth questions as valid, regardless of word count
+    if (lowerQ.includes('birth') || lowerQ.includes('dob') || lowerQ.includes('date of birth')) {
+        return true;
     }
 
-    // Check if question ends with '?'
-    if (!question.trim().endsWith('?')) {
-        return false; // Not a proper question
+    // Ignore very short strings (1-2 words, likely labels not questions)
+    if (lowerQ.split(' ').length < 3) return false;
+
+    for (const greet of greetings) {
+        if (lowerQ.startsWith(greet) || lowerQ.includes(greet)) {
+            return false;
+        }
     }
 
     return true; // Valid question

@@ -1,5 +1,6 @@
 
 
+
 /**
 * ======================== AUTO APPLY MODULE ========================
 * Main automation script for applying to jobs on Naukri.
@@ -20,7 +21,6 @@ import {
     getReasoningLog
 } from './aiAnswer.js';
 import sequelize from './db/config.js';
-import XLSX from 'xlsx';
 import JobApplicationResult from './models/JobApplicationResult.js';
 import { launchBrowser } from './utils/puppeteerHelper.js';
 
@@ -29,6 +29,7 @@ let isRunning = false;
 let automationLogs = [];
 let browser = null;
 let jobResults = [];
+let currentUserId = null; // tracked so stopAutomation + disconnect handler can save data
 
 /**
 * Add log message with timestamp
@@ -722,22 +723,37 @@ async function loginToNaukri(page, email, password) {
 * @param {puppeteer.Page} jobPage - Puppeteer page instance
 * @param {string} userId - User ID for intelligent checkbox matching
 */
-async function handleChatbot(jobPage, userId = null) {
+async function handleChatbot(jobPage, userId = null, userPrefs = null) {
     try {
         await jobPage.waitForSelector('.chatbot_MessageContainer', { timeout: 5000 });
 
         const answered = new Set();
         const maxPolls = 20;
+        let consecutiveEmptyPolls = 0;
 
         for (let j = 0; j < maxPolls; j++) {
             const questions = await jobPage.$$eval('.botItem .botMsg span', spans =>
                 spans.map(s => s.innerText.trim()).filter(Boolean)
             );
 
-            for (let q of questions) {
-                if (answered.has(q)) continue;
-                answered.add(q);
+            // Find new (unanswered) questions
+            const newQuestions = questions.filter(q => !answered.has(q));
 
+            // Early exit: if no new questions for 3 consecutive polls, chatbot is done
+            if (newQuestions.length === 0) {
+                consecutiveEmptyPolls++;
+                if (consecutiveEmptyPolls >= 3) {
+                    addLog('No new questions detected - chatbot complete', 'info');
+                    break;
+                }
+                await delay(500);
+                continue;
+            }
+
+            consecutiveEmptyPolls = 0; // reset on new question
+
+            for (let q of newQuestions) {
+                answered.add(q);
                 addLog(`Question: ${q}`, 'info');
 
                 // First try handling checkbox with intelligent matching
@@ -746,33 +762,39 @@ async function handleChatbot(jobPage, userId = null) {
                     addLog('Checkbox question auto-answered', 'success');
                     const nextBtn = await jobPage.$('.sendMsg');
                     if (nextBtn) await nextBtn.click();
+                    // Wait for next bot message instead of fixed delay
+                    await waitForNextBotMessage(jobPage, questions.length);
                     continue;
                 }
 
                 // 🔹 Handle RADIO buttons (Yes / No / Skip)
-                const radioHandled = await handleRadioButtons(jobPage, userId);
+                const radioHandled = await handleRadioButtons(jobPage, userPrefs);
                 if (radioHandled) {
                     addLog('Radio question auto-answered', 'success');
                     const nextBtn = await jobPage.$('.sendMsg');
                     if (nextBtn) await nextBtn.click();
+                    await waitForNextBotMessage(jobPage, questions.length);
                     continue;
                 }
 
                 // AI-generated text answer
                 const aiAnswer = await getAnswer(q);
-                addLog(`AI Answer: ${aiAnswer}`, 'success');
 
-                // Reasoning logs disabled (agentic AI disabled)
-                // const reasoningLog = getReasoningLog();
-                // if (reasoningLog.length > 0) {
-                //     const lastReasoning = reasoningLog[reasoningLog.length - 1];
-                //     if (lastReasoning.reasoning && lastReasoning.reasoning.length > 0) {
-                //         addLog(`  Reasoning: ${lastReasoning.reasoning.join(' → ')}`, 'info');
-                //     }
-                //     if (lastReasoning.confidence) {
-                //         addLog(`  Confidence: ${lastReasoning.confidence}%`, 'info');
-                //     }
-                // }
+                // If aiAnswer is empty, it might be an informational message (e.g. "choose upto 10 cities")
+                // Wait briefly and try checkboxes again — city options may now be visible
+                if (!aiAnswer || aiAnswer.trim() === '') {
+                    await delay(800);
+                    const retryCheckbox = await handleCheckBox(jobPage, userId);
+                    if (retryCheckbox) {
+                        addLog('Checkbox options appeared after informational message — answered', 'success');
+                        const nextBtn = await jobPage.$('.sendMsg');
+                        if (nextBtn) await nextBtn.click();
+                        await waitForNextBotMessage(jobPage, questions.length);
+                    }
+                    continue;
+                }
+
+                addLog(`AI Answer: ${aiAnswer}`, 'success');
 
                 const inputSelector = ".textArea[contenteditable='true']";
 
@@ -788,7 +810,6 @@ async function handleChatbot(jobPage, userId = null) {
                 await jobPage.evaluate((sel, answer) => {
                     const el = document.querySelector(sel);
                     if (el) {
-                        // Some chat inputs use innerText, some use innerHTML; innerText is usually fine
                         el.innerText = answer;
                         el.dispatchEvent(new Event('input', { bubbles: true }));
                     }
@@ -797,15 +818,32 @@ async function handleChatbot(jobPage, userId = null) {
                 const sendBtn = await jobPage.$('.sendMsg');
                 if (sendBtn) await sendBtn.click();
 
-                await delay(1000);
+                // Wait for next bot message instead of fixed 1000ms delay
+                await waitForNextBotMessage(jobPage, questions.length);
             }
-
-            await delay(1000);
         }
 
         addLog('Chatbot answers completed!', 'success');
     } catch (err) {
         addLog(`Error in chatbot auto-answer: ${err.message}`, 'warning');
+    }
+}
+
+/**
+ * Wait for the next bot message to appear (faster than fixed delay)
+ * Falls back to 500ms if no new message in 2s
+ */
+async function waitForNextBotMessage(jobPage, currentCount) {
+    try {
+        // Wait until bot message count increases (new question arrived)
+        await jobPage.waitForFunction(
+            (count) => document.querySelectorAll('.botItem .botMsg span').length > count,
+            { timeout: 2000 },
+            currentCount
+        );
+    } catch (e) {
+        // No new message in 2s - just wait 300ms and continue
+        await delay(300);
     }
 }
 
@@ -924,17 +962,56 @@ async function scrapeJobDetails(jobPage) {
 /**
 * Save results to Excel file
 */
-function saveToExcel() {
+/**
+ * Save all collected jobResults to DB.
+ * Safe to call multiple times — ignoreDuplicates skips already-saved records.
+ * Called after every job, in finally, and on manual/disconnect stop.
+ */
+async function saveResultsToDB(userId) {
+    if (!userId || jobResults.length === 0) return;
     try {
-        const ws = XLSX.utils.json_to_sheet(jobResults);
-        const wb = XLSX.utils.book_new();
+        const dbResults = jobResults.map(result => ({
+            userId,
+            datetime: result.datetime || new Date(),
+            pageNumber: result.pageNumber,
+            jobNumber: result.jobNumber,
+            companyUrl: result.companyUrl,
+            earlyApplicant: result.EarlyApplicant === 'Yes',
+            keySkillsMatch: result.KeySkillsMatch === 'Yes',
+            locationMatch: result.LocationMatch === 'Yes',
+            experienceMatch: result.ExperienceMatch === 'Yes',
+            matchScore: parseInt((result.MatchScore || '0/5').split('/')[0]),
+            matchScoreTotal: 5,
+            matchStatus: result.matchStatus,
+            applyType: result.applyType,
+            applicationStatus: result.applicationStatus || null,
+            jobTitle: result.jobTitle || null,
+            companyName: result.companyName || null,
+            experienceRequired: result.experienceRequired || null,
+            salary: result.salary || null,
+            location: result.location || null,
+            postedDate: result.postedDate || null,
+            openings: result.openings || null,
+            applicants: result.applicants || null,
+            keySkills: result.keySkills || null,
+            role: result.role || null,
+            industryType: result.industryType || null,
+            employmentType: result.employmentType || null,
+            roleCategory: result.roleCategory || null,
+            companyRating: result.companyRating || null,
+            jobHighlights: result.jobHighlights || null,
+        }));
 
-        XLSX.utils.book_append_sheet(wb, ws, 'Naukri Results');
-        XLSX.writeFile(wb, 'naukri_results.xlsx');
+        const saved = await JobApplicationResult.bulkCreate(dbResults, {
+            ignoreDuplicates: true,
+            validate: true,
+        });
 
-        addLog('Excel Saved: naukri_results.xlsx', 'success');
+        if (saved.length > 0) {
+            addLog(`💾 Saved ${saved.length} result(s) to DB`, 'success');
+        }
     } catch (err) {
-        addLog(`Error saving Excel: ${err.message}`, 'error');
+        addLog(`⚠️ DB save error: ${err.message}`, 'warning');
     }
 }
 
@@ -956,6 +1033,7 @@ export async function startAutomation(options = {}) {
     isRunning = true;
     automationLogs = [];
     jobResults = [];
+    currentUserId = userId;
 
     const {
         userId = null,
@@ -1144,6 +1222,16 @@ export async function startAutomation(options = {}) {
         // Use helper to launch browser with automatic Chrome detection
         browser = await launchBrowser(browserConfig);
 
+        // AUTO-STOP when user manually closes Chrome window — save data before stopping
+        browser.on('disconnected', () => {
+            if (isRunning) {
+                addLog('⚠️ Browser was closed manually - saving data & stopping...', 'warning');
+                isRunning = false;
+                browser = null;
+                saveResultsToDB(currentUserId).catch(() => {});
+            }
+        });
+
         const page = await browser.newPage();
 
         // CRITICAL: Hide automation detection
@@ -1249,7 +1337,9 @@ export async function startAutomation(options = {}) {
         // }
 
         // ========== STEP 4: PROCESS JOB PAGES ==========
-        // Use the finalJobUrl directly without modification
+        // Fetch user preferences once — reused for every job's radio/checkbox handling
+        const userPrefs = userId ? await fetchUserPreferences(userId) : null;
+
         let currentPage = 1;
         let totalJobsApplied = 0;
         let totalJobsSkipped = 0;
@@ -1384,32 +1474,81 @@ export async function startAutomation(options = {}) {
 
                 // Check match score
                 try {
-                    await jobPage.waitForSelector('.styles_JDC__match-score__VnjLL', { timeout: 5000 });
+                    await jobPage.waitForSelector('[class*="match-score"], [class*="MS__details"]', { timeout: 5000 });
 
                     const matchData = await jobPage.evaluate(() => {
-                        const container = document.querySelector('.styles_JDC__match-score__VnjLL');
-                        if (!container) return null;
+                        // Use partial class selectors — resilient to Naukri's hashed dynamic class names
+                        const container = document.querySelector('[class*="match-score"]');
+                        if (!container) return { error: 'container_not_found' };
 
-                        const blocks = container.querySelectorAll('.styles_MS__details__iS7mj');
+                        const blocks = container.querySelectorAll('[class*="MS__details"]');
+                        if (blocks.length < 4) return { error: `only_${blocks.length}_blocks_found` };
 
-                        const isMatched = (el) =>
-                            !!el?.querySelector('.ni-icon-check_circle');
+                        // HTML: <div class="styles_MS__details__iS7mj">
+                        //         <i class="ni-icon-check_circle"></i>
+                        //         <span>Key Skills</span>
+                        //       </div>
+                        // icon class is directly on <i> tag — single class, no nesting
+
+                        const getIconClass = (el) => {
+                            if (!el) return 'NO_BLOCK';
+                            const icon = el.querySelector('i');
+                            return icon ? icon.className.trim() : 'NO_ICON';
+                        };
+
+                        const hasCheck = (el) => !!el?.querySelector('i.ni-icon-check_circle');
+
+                        // block[0] Early Applicant — ignored for canApply decision
+                        const earlyApplicant = hasCheck(blocks[0]);
+
+                        // block[1] Key Skills — compulsory
+                        const keySkills  = hasCheck(blocks[1]);
+                        // block[2] Location — compulsory
+                        const location   = hasCheck(blocks[2]);
+                        // block[3] Experience — compulsory
+                        const experience = hasCheck(blocks[3]);
 
                         return {
-                            earlyApplicant: isMatched(blocks[0]),
-                            keySkills: isMatched(blocks[1]),
-                            location: isMatched(blocks[2]),
-                            experience: isMatched(blocks[3])
+                            earlyApplicant,
+                            keySkills,
+                            location,
+                            experience,
+                            // debug: exact icon class found in each block
+                            _icons: {
+                                block0: getIconClass(blocks[0]),
+                                block1: getIconClass(blocks[1]),
+                                block2: getIconClass(blocks[2]),
+                                block3: getIconClass(blocks[3]),
+                            }
                         };
                     });
 
-                    if (!matchData) {
-                        addLog('Match score container not found', 'warning');
+                    if (!matchData || matchData.error) {
+                        addLog(`Match score check failed: ${matchData?.error || 'unknown'} — skipping job`, 'warning');
                     } else {
+                        // Debug: shows exact icon class in each block so we can verify
                         addLog(
-                            `Match Details → Early:${matchData.earlyApplicant}, Skills:${matchData.keySkills}, Location:${matchData.location}, Exp:${matchData.experience}`,
+                            `[Icons] Block0(Early):${matchData._icons.block0} | Block1(Skills):${matchData._icons.block1} | Block2(Loc):${matchData._icons.block2} | Block3(Exp):${matchData._icons.block3}`,
                             'info'
                         );
+                        addLog(
+                            `Match → Early:${matchData.earlyApplicant} | Skills:${matchData.keySkills} | Location:${matchData.location} | Exp:${matchData.experience}`,
+                            'info'
+                        );
+
+                        // Early Applicant does NOT affect decision
+                        // Skills + Location + Experience ALL three must be check_circle
+                        canApply = matchData.keySkills && matchData.location && matchData.experience;
+
+                        if (!canApply) {
+                            const failed = [];
+                            if (!matchData.keySkills)  failed.push(`Skills(${matchData._icons.block1})`);
+                            if (!matchData.location)   failed.push(`Location(${matchData._icons.block2})`);
+                            if (!matchData.experience) failed.push(`Experience(${matchData._icons.block3})`);
+                            addLog(`Poor match — failed: ${failed.join(', ')} — skipping`, 'warning');
+                        } else {
+                            addLog('Good match — eligible to apply', 'success');
+                        }
 
                         const matchScore =
                             (matchData.earlyApplicant ? 1 : 0) +
@@ -1417,16 +1556,6 @@ export async function startAutomation(options = {}) {
                             (matchData.location ? 1 : 0) +
                             (matchData.experience ? 1 : 0);
 
-                        canApply = matchScore >= 4;  // Only apply if all 4 criteria match
-
-                        addLog(
-                            canApply
-                                ? 'Good match - Eligible to apply'
-                                : 'Poor match - Skipping...',
-                            canApply ? 'success' : 'warning'
-                        );
-
-                        // 👉 THIS is what you will save in DB
                         matchResult = {
                             earlyApplicant: matchData.earlyApplicant,
                             keySkillsMatch: matchData.keySkills,
@@ -1437,7 +1566,7 @@ export async function startAutomation(options = {}) {
                         };
                     }
                 } catch (err) {
-                    addLog('Error while evaluating match score', 'error');
+                    addLog(`Match score check error: ${err.message} — skipping job`, 'warning');
                 }
 
                 // Check apply button type
@@ -1487,8 +1616,9 @@ export async function startAutomation(options = {}) {
                     jobHighlights: scrapedDetails.jobHighlights
                 };
 
-                // Add to results array
+                // Add to results array and immediately persist to DB (no data loss on mid-run stop)
                 jobResults.push(jobResult);
+                await saveResultsToDB(userId);
 
                 // Skip external apply or poor match
                 if (externalApply || !applyBtn || !canApply) {
@@ -1518,7 +1648,7 @@ export async function startAutomation(options = {}) {
                 await delay(5000);
 
                 // Handle chatbot with intelligent checkbox matching
-                await handleChatbot(jobPage, userId);
+                await handleChatbot(jobPage, userId, userPrefs);
 
                 // Mark as Applied ONLY after successful application
                 jobResult.applicationStatus = 'Applied';
@@ -1533,77 +1663,8 @@ export async function startAutomation(options = {}) {
             currentPage++;
         }
 
-        // Save results to Excel
-        saveToExcel();
-
-        // Save results to database (bulk insert)
-        if (jobResults.length > 0) {
-            try {
-                addLog(`Saving ${jobResults.length} results to database...`, 'info');
-
-                const dbResults = jobResults.map(result => ({
-                    userId: userId,
-                    datetime: result.datetime || new Date(),
-                    pageNumber: result.pageNumber,
-                    jobNumber: result.jobNumber,
-                    companyUrl: result.companyUrl,
-                    earlyApplicant: result.EarlyApplicant === 'Yes',
-                    keySkillsMatch: result.KeySkillsMatch === 'Yes',
-                    locationMatch: result.LocationMatch === 'Yes',
-                    experienceMatch: result.ExperienceMatch === 'Yes',
-                    matchScore: parseInt(result.MatchScore.split('/')[0]),
-                    matchScoreTotal: 5,
-                    matchStatus: result.matchStatus,
-                    applyType: result.applyType,
-                    applicationStatus: result.applicationStatus || null,
-                    // Job details from scraping
-                    jobTitle: result.jobTitle || null,
-                    companyName: result.companyName || null,
-                    experienceRequired: result.experienceRequired || null,
-                    salary: result.salary || null,
-                    location: result.location || null,
-                    postedDate: result.postedDate || null,
-                    openings: result.openings || null,
-                    applicants: result.applicants || null,
-                    keySkills: result.keySkills || null,
-                    role: result.role || null,
-                    industryType: result.industryType || null,
-                    employmentType: result.employmentType || null,
-                    roleCategory: result.roleCategory || null,
-                    companyRating: result.companyRating || null,
-                    jobHighlights: result.jobHighlights || null,
-                }));
-
-                // Safe insert with deduplication
-                // ignoreDuplicates: true - Skips records with duplicate company_url
-                // updateOnDuplicate: Updates existing records instead of skipping
-                const savedResults = await JobApplicationResult.bulkCreate(dbResults, {
-                    ignoreDuplicates: true, // Skip duplicates silently
-                    validate: true,
-                    returning: true
-                });
-
-                const duplicatesSkipped = dbResults.length - savedResults.length;
-
-                if (duplicatesSkipped > 0) {
-                    addLog(`⚠️  Duplicate company URLs detected: ${duplicatesSkipped} record(s) skipped`, 'warning');
-                    addLog(`   Previous applications exist for these companies`, 'info');
-                }
-
-                if (savedResults.length > 0) {
-                    addLog(`✅ Successfully saved ${savedResults.length} new result(s) to database`, 'success');
-                } else {
-                    addLog(`ℹ️  No new results to save (all were duplicates)`, 'info');
-                }
-            } catch (dbError) {
-                // Check for duplicate key error specifically
-                if (dbError.name === 'SequelizeUniqueConstraintError') {
-                    addLog(`⚠️  Some records already exist in database, continuing...`, 'warning');
-                } else {
-                    addLog(`⚠️  Unable to save results to database. Your applications were successful but may not appear in history.`, 'warning');
-                }
-            }
-        }
+        // Final save — catches any remaining unsaved results (safety net)
+        await saveResultsToDB(userId);
 
         // ========== FINAL SUMMARY ==========
         addLog('', 'info');
@@ -1641,14 +1702,18 @@ export async function startAutomation(options = {}) {
             logs: automationLogs,
         };
     } finally {
+        // Save any remaining results before shutting down
+        await saveResultsToDB(currentUserId).catch(() => {});
         if (browser) {
             try {
                 await browser.close();
             } catch (e) {
-                // ignore close errors
+                // ignore close errors (may already be closed)
             }
+            browser = null;
         }
         isRunning = false;
+        currentUserId = null;
     }
 }
 
@@ -1729,6 +1794,9 @@ export async function stopAutomation() {
         }
     }
 
+    // Save collected data before fully stopping
+    await saveResultsToDB(currentUserId).catch(() => {});
+
     addLog('✅ All automation processes stopped successfully', 'success');
 }
 
@@ -1775,7 +1843,7 @@ export function resetAutomationState() {
 
 /* ======================== CHATBOT RADIO HANDLER (ADDED) ======================== */
 
-async function handleRadioButtons(page, userId = null) {
+async function handleRadioButtons(page, userPrefs = null) {
     try {
         const radioSelector = '.ssrc__radio';
 
@@ -1803,9 +1871,7 @@ async function handleRadioButtons(page, userId = null) {
 
         let selectedIndex = null;
 
-        if (userId) {
-            const prefs = await fetchUserPreferences(userId);
-
+        if (userPrefs) {
             // 🔹 Location / Relocation Question
             const questionText = await page.$eval(
                 '.botItem .botMsg span',
@@ -1813,7 +1879,7 @@ async function handleRadioButtons(page, userId = null) {
             );
 
             if (questionText.includes('relocate') || questionText.includes('residing')) {
-                if (prefs.location) {
+                if (userPrefs.location) {
                     selectedIndex = radioData.findIndex(r =>
                         r.label.toLowerCase().includes('yes')
                     );

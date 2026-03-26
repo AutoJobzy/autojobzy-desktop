@@ -121,11 +121,11 @@ const JobSettings = sequelize.define('JobSettings', {
         type: DataTypes.INTEGER,
         defaultValue: 0,
     },
-    // Years of experience for job search filtering (numeric value)
+    // Years of experience for job search filtering (stored as string to allow values like "4.5")
     yearsOfExperience: {
-        type: DataTypes.TINYINT.UNSIGNED,
-        allowNull: false,
-        defaultValue: 0,
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        defaultValue: '0',
         field: 'years_of_experience',
         comment: 'Years of experience for job search filtering',
     },

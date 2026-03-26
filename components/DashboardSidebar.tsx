@@ -66,7 +66,6 @@ const DashboardSidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) =
     { id: 'activity', label: 'My Activity', icon: Activity },
     { id: 'config', label: 'Job Profile', icon: Settings },
     { id: 'history', label: 'Application History', icon: FileText },
-    { id: 'learn', label: 'Learn & Grow', icon: GraduationCap },
   ];
 
   // Build profile menu items dynamically based on user role

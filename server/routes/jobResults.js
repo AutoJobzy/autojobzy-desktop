@@ -7,6 +7,7 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import JobApplicationResult from '../models/JobApplicationResult.js';
+import sequelize from '../db/config.js';
 import { Op } from 'sequelize';
 
 const router = express.Router();
@@ -170,89 +171,86 @@ router.get('/stats', authenticateToken, async (req, res) => {
             if (endDate) where.datetime[Op.lte] = new Date(endDate);
         }
 
-        // Get all results for the user
-        const results = await JobApplicationResult.findAll({ where });
-
-        // Calculate today's applications (using UTC to avoid timezone issues)
+        // ── Query 1: all aggregate counts in one DB call ──────────────────────
         const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayEnd   = new Date(todayStart.getTime() + 86400000); // +1 day
 
-        const todayResults = results.filter(r => {
-            const appDate = new Date(r.datetime);
-            return appDate >= today && appDate < tomorrow;
+        const [agg] = await JobApplicationResult.findAll({
+            where,
+            attributes: [
+                [sequelize.fn('COUNT', sequelize.col('id')),                                                                    'total'],
+                [sequelize.fn('SUM', sequelize.literal(`datetime >= '${todayStart.toISOString()}' AND datetime < '${todayEnd.toISOString()}'`)),  'today'],
+                [sequelize.fn('SUM', sequelize.literal(`application_status = 'Applied'`)),                                      'applied'],
+                [sequelize.fn('SUM', sequelize.literal(`application_status = 'Skipped'`)),                                      'skipped'],
+                [sequelize.fn('SUM', sequelize.literal(`match_status = 'Good Match'`)),                                         'goodMatches'],
+                [sequelize.fn('SUM', sequelize.literal(`match_status = 'Poor Match'`)),                                         'poorMatches'],
+                [sequelize.fn('SUM', sequelize.literal(`apply_type = 'Direct Apply' AND application_status = 'Applied'`)),      'directApply'],
+                [sequelize.fn('SUM', sequelize.literal(`apply_type = 'External Apply' AND application_status = 'Applied'`)),    'externalApply'],
+                [sequelize.fn('SUM', sequelize.literal(`apply_type = 'No Apply Button'`)),                                      'noApplyButton'],
+                [sequelize.fn('AVG',  sequelize.col('match_score')),                                                            'avgMatchScore'],
+                [sequelize.fn('SUM', sequelize.literal(`early_applicant = 1`)),                                                 'earlyApplicantCount'],
+                [sequelize.fn('SUM', sequelize.literal(`key_skills_match = 1`)),                                                'keySkillsMatchCount'],
+                [sequelize.fn('SUM', sequelize.literal(`location_match = 1`)),                                                  'locationMatchCount'],
+                [sequelize.fn('SUM', sequelize.literal(`experience_match = 1`)),                                                'experienceMatchCount'],
+            ],
+            raw: true,
         });
 
-        // Calculate statistics
-        const goodMatches = results.filter(r => r.matchStatus === 'Good Match').length;
-        const successRate = results.length > 0
-            ? Math.round((goodMatches / results.length) * 100)
-            : 0;
+        const total      = parseInt(agg.total)      || 0;
+        const goodMatches = parseInt(agg.goodMatches) || 0;
 
-        // Application status breakdown
-        const applied = results.filter(r => r.applicationStatus === 'Applied').length;
-        const skipped = results.filter(r => r.applicationStatus === 'Skipped').length;
+        // ── Query 2: daily trend — last 7 days grouped by date ───────────────
+        const sevenDaysAgo = new Date(todayStart.getTime() - 6 * 86400000);
 
-        // Apply type breakdown (for applied only)
-        const appliedResults = results.filter(r => r.applicationStatus === 'Applied');
-        const directApplyCount = appliedResults.filter(r => r.applyType === 'Direct Apply').length;
-        const externalApplyCount = appliedResults.filter(r => r.applyType === 'External Apply').length;
+        const trendRows = await JobApplicationResult.findAll({
+            where: {
+                ...where,
+                datetime: { [Op.gte]: sevenDaysAgo },
+            },
+            attributes: [
+                [sequelize.fn('DATE', sequelize.col('datetime')),                                                'day'],
+                [sequelize.fn('COUNT', sequelize.col('id')),                                                     'total'],
+                [sequelize.fn('SUM', sequelize.literal(`application_status = 'Applied'`)),                       'applied'],
+                [sequelize.fn('SUM', sequelize.literal(`application_status = 'Skipped'`)),                       'skipped'],
+            ],
+            group: [sequelize.fn('DATE', sequelize.col('datetime'))],
+            order: [[sequelize.fn('DATE', sequelize.col('datetime')), 'ASC']],
+            raw: true,
+        });
 
-        // Calculate daily application trend (last 7 days)
+        // Fill in missing days with 0s
+        const trendMap = Object.fromEntries(trendRows.map(r => [r.day, r]));
         const dailyTrend = [];
         for (let i = 6; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            date.setHours(0, 0, 0, 0);
-
-            const nextDate = new Date(date);
-            nextDate.setDate(nextDate.getDate() + 1);
-
-            const dayResults = results.filter(r => {
-                const rDate = new Date(r.datetime);
-                return rDate >= date && rDate < nextDate;
-            });
-
+            const d = new Date(todayStart.getTime() - i * 86400000);
+            const key = d.toISOString().split('T')[0];
+            const row = trendMap[key] || {};
             dailyTrend.push({
-                date: date.toISOString().split('T')[0],
-                total: dayResults.length,
-                applied: dayResults.filter(r => r.applicationStatus === 'Applied').length,
-                skipped: dayResults.filter(r => r.applicationStatus === 'Skipped').length,
+                date:    key,
+                total:   parseInt(row.total)   || 0,
+                applied: parseInt(row.applied) || 0,
+                skipped: parseInt(row.skipped) || 0,
             });
         }
 
         const stats = {
-            // Overall stats
-            totalApplications: results.length,
-            todayApplications: todayResults.length,
-
-            // Application status breakdown
-            applied: applied,
-            skipped: skipped,
-
-            // Apply type breakdown (for applied applications)
-            directApply: directApplyCount,
-            externalApply: externalApplyCount,
-            noApplyButton: results.filter(r => r.applyType === 'No Apply Button').length,
-
-            // Match quality
-            successRate: successRate,
-            goodMatches: goodMatches,
-            poorMatches: results.filter(r => r.matchStatus === 'Poor Match').length,
-            avgMatchScore:
-                results.length > 0
-                    ? (results.reduce((sum, r) => sum + r.matchScore, 0) / results.length).toFixed(2)
-                    : 0,
-
-            // Match criteria counts
-            earlyApplicantCount: results.filter(r => r.earlyApplicant).length,
-            keySkillsMatchCount: results.filter(r => r.keySkillsMatch).length,
-            locationMatchCount: results.filter(r => r.locationMatch).length,
-            experienceMatchCount: results.filter(r => r.experienceMatch).length,
-
-            // Trend data
-            dailyTrend: dailyTrend,
+            totalApplications:  total,
+            todayApplications:  parseInt(agg.today)          || 0,
+            applied:            parseInt(agg.applied)         || 0,
+            skipped:            parseInt(agg.skipped)         || 0,
+            directApply:        parseInt(agg.directApply)     || 0,
+            externalApply:      parseInt(agg.externalApply)   || 0,
+            noApplyButton:      parseInt(agg.noApplyButton)   || 0,
+            successRate:        total > 0 ? Math.round((goodMatches / total) * 100) : 0,
+            goodMatches,
+            poorMatches:        parseInt(agg.poorMatches)         || 0,
+            avgMatchScore:      agg.avgMatchScore ? parseFloat(agg.avgMatchScore).toFixed(2) : 0,
+            earlyApplicantCount: parseInt(agg.earlyApplicantCount) || 0,
+            keySkillsMatchCount: parseInt(agg.keySkillsMatchCount) || 0,
+            locationMatchCount:  parseInt(agg.locationMatchCount)  || 0,
+            experienceMatchCount:parseInt(agg.experienceMatchCount)|| 0,
+            dailyTrend,
         };
 
         res.json(stats);

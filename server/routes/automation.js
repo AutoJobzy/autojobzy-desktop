@@ -138,13 +138,7 @@ router.post('/run-bot', authenticateToken, async (req, res) => {
         });
 
         // Load skills from database for intelligent answering
-        await initializeSkillsFromDB(req.userId, {
-            host: process.env.DB_HOST || 'database-1.c72i2s6muax7.ap-south-1.rds.amazonaws.com',
-            port: process.env.DB_PORT || 3306,
-            user: process.env.DB_USER || 'admin',
-            password: process.env.DB_PASSWORD || 'YsjlUaX5yFJGtZqjmrSj',
-            database: process.env.DB_NAME || 'jobautomate',
-        });
+        await initializeSkillsFromDB(req.userId);
 
         // 7. Get request parameters
         const {
@@ -159,33 +153,25 @@ router.post('/run-bot', authenticateToken, async (req, res) => {
         // Get maxPages from job settings (user-configured value)
         const maxPages = jobSettings.maxPages || 5;
 
-        // 7. Start automation with all data loaded
-        const result = await startAutomation({
-            userId: req.userId,  // Pass userId for direct DB lookup
-            jobUrl: finalUrlFromDb || 'https://www.naukri.com/mnjuser/homepage/https://www.naukri.com/mnjuser/homepage',
-            maxPages: Math.min(maxPages, 50), // Cap at 50 pages (same as UI max)
+        // 7. Start automation in background (non-blocking) — respond immediately
+        res.json({ success: true, message: 'Automation started' });
+
+        startAutomation({
+            userId: req.userId,
+            jobUrl: finalUrlFromDb || null,
+            maxPages: Math.min(maxPages, 50),
             searchKeywords: searchKeywords || jobSettings.searchKeywords,
             resumeText: jobSettings.resumeText || 'No resume provided',
             naukriEmail: naukriEmail,
             naukriPassword: naukriPassword,
-        });
-
-        // Return success response with logs
-        res.json({
-            success: result.success,
-            message: result.success
-                ? `Bot completed! Applied to ${result.jobsApplied} jobs`
-                : `Bot encountered error: ${result.error}`,
-            jobsApplied: result.jobsApplied || 0,
-            logs: result.logs,
-            error: result.error || null,
+        }).catch(err => {
+            console.error('Background automation error:', err.message);
         });
 
     } catch (error) {
         console.error('Run bot error:', error);
         res.status(500).json({
             error: error.message || 'Failed to start bot',
-            logs: getLogs(),
         });
     }
 });
@@ -226,13 +212,7 @@ router.post('/start', authenticateToken, async (req, res) => {
         });
 
         // Load skills from database for intelligent answering
-        await initializeSkillsFromDB(req.userId, {
-            host: process.env.DB_HOST || 'localhost',
-            port: process.env.DB_PORT || 3306,
-            user: process.env.DB_USER || 'root',
-            password: process.env.DB_PASSWORD || '',
-            database: process.env.DB_NAME || 'jobautomate',
-        });
+        await initializeSkillsFromDB(req.userId);
 
         const { jobUrl, maxPages } = req.body;
 

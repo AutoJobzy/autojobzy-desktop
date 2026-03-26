@@ -212,7 +212,6 @@ router.post('/', authenticateToken, async (req, res) => {
             currentCTC: 'Current Salary',
             expectedCTC: 'Expected Salary',
             noticePeriod: 'Notice Period',
-            searchKeywords: 'Keywords',
             availability: 'Availability',
             dob: 'Date of Birth',
         };
@@ -232,17 +231,7 @@ router.post('/', authenticateToken, async (req, res) => {
             }
         }
 
-        // Validate yearsOfExperience if provided
-        if (yearsOfExperience !== undefined && yearsOfExperience !== null) {
-            const experience = parseInt(yearsOfExperience);
-            if (isNaN(experience) || experience < 0 || experience > 50 || !Number.isInteger(parseFloat(yearsOfExperience))) {
-                return res.status(400).json({
-                    error: 'Invalid years of experience',
-                    message: 'Years of experience must be a positive integer between 0 and 50',
-                    field: 'yearsOfExperience'
-                });
-            }
-        }
+        // No strict validation — accept any string/number value for yearsOfExperience
 
         // Find or create job settings for the logged-in user
         let jobSettings = await JobSettings.findOne({
@@ -271,7 +260,7 @@ router.post('/', authenticateToken, async (req, res) => {
         if (searchKeywords !== undefined) updateData.searchKeywords = searchKeywords;
         if (availability !== undefined) updateData.availability = availability;
         if (maxPages !== undefined) updateData.maxPages = maxPages;
-        if (yearsOfExperience !== undefined) updateData.yearsOfExperience = parseInt(yearsOfExperience);
+        if (yearsOfExperience !== undefined) updateData.yearsOfExperience = yearsOfExperience;
         if (dob !== undefined) updateData.dob = dob || null;
 
         // Update only if there are fields to update

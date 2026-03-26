@@ -53,6 +53,11 @@ function isDev() {
   return !app.isPackaged;
 }
 
+// API base URL — always production
+function getApiBaseUrl() {
+  return 'https://api.autojobzy.com/api';
+}
+
 // Logger will be initialized after app is ready (moved to app.whenReady)
 
 /**
@@ -86,7 +91,7 @@ function createWindow() {
   if (isDev()) {
     // Development: Load from Vite dev server
     mainWindow.loadURL(VITE_DEV_SERVER_URL);
-    // mainWindow.webContents.openDevTools(); // Disabled - DevTools won't auto-open
+    mainWindow.webContents.openDevTools(); // Temporarily enabled to debug white screen
   } else {
     // Production: Load from built files
     const indexPath = path.join(__dirname, '../dist/index.html');
@@ -386,7 +391,7 @@ ipcMain.handle('start-automation', async (event, config) => {
     console.log('🖥️  Starting LOCAL automation with config:', config);
 
     // Fetch user settings from AWS backend (for credentials only)
-    const API_BASE_URL = 'https://api.autojobzy.com/api';
+    const API_BASE_URL = config.apiBaseUrl || getApiBaseUrl();
     const token = config.token;
 
     if (!token) {
@@ -601,7 +606,7 @@ ipcMain.handle('start-profile-update', async (event, config) => {
     console.log('🖥️  Starting LOCAL profile update');
 
     // Fetch credentials from AWS backend
-    const API_BASE_URL = 'https://api.autojobzy.com/api';
+    const API_BASE_URL = config.apiBaseUrl || getApiBaseUrl();
     const token = config.token;
 
     if (!token) {
@@ -711,7 +716,7 @@ ipcMain.handle('start-ear-automation', async (event, config) => {
   currentEarLogs = [];
 
   try {
-    const API_BASE_URL = 'https://api.autojobzy.com/api';
+    const API_BASE_URL = config.apiBaseUrl || getApiBaseUrl();
     const token = config.token;
     if (!token) throw new Error('No authentication token provided');
 
@@ -792,7 +797,7 @@ ipcMain.handle('start-apply-automation', async (_event, config) => {
   currentApplyLogs = [];
 
   try {
-    const API_BASE_URL = 'https://api.autojobzy.com/api';
+    const API_BASE_URL = config.apiBaseUrl || getApiBaseUrl();
     const token = config.token;
     if (!token) throw new Error('No authentication token provided');
 
