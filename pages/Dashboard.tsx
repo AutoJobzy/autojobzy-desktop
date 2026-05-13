@@ -152,6 +152,12 @@ const Dashboard: React.FC = () => {
   const [selectedApplication, setSelectedApplication] = useState<any>(null);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Blacklist state
+  const [blacklistEnabled, setBlacklistEnabled] = useState(false);
+  const [blacklistedCompanies, setBlacklistedCompanies] = useState<any[]>([]);
+  const [newBlacklistInput, setNewBlacklistInput] = useState('');
+  const [blacklistLoading, setBlacklistLoading] = useState(false);
+
   // History Filters
   const [historyFilters, setHistoryFilters] = useState({
     matchStatus: '',
@@ -188,12 +194,13 @@ const Dashboard: React.FC = () => {
     };
   }, []);
 
-  // Load job settings, skills, filters, and subscription on mount
+  // Load job settings, skills, filters, subscription, and blacklist on mount
   useEffect(() => {
     loadJobSettings();
     loadSkills();
     loadFilters();
     loadSubscriptionData();
+    loadBlacklist();
   }, []);
 
   // Handle logout when activeTab is set to 'logout'
@@ -384,7 +391,6 @@ const Dashboard: React.FC = () => {
         currentCTC: configForm.currentSalary,
         expectedCTC: configForm.expectedSalary,
         noticePeriod: configForm.noticePeriod,
-        searchKeywords: configForm.keywords,
         availability: configForm.availability,
         maxPages: configForm.maxPages,
         yearsOfExperience: configForm.yearsOfExperience ?? 0,
@@ -791,6 +797,9 @@ const Dashboard: React.FC = () => {
 
         // Store original password to detect changes
         setOriginalPassword(result.naukriPassword || '');
+
+        // Set blacklist toggle state
+        setBlacklistEnabled(result.blacklistEnabled || false);
       }
     } catch (err) {
       setError('Unable to load job settings. Please refresh the page and try again.');
@@ -817,6 +826,69 @@ const Dashboard: React.FC = () => {
       setSkills(result.skills || []);
     } catch (err) {
       // Silently fail - skills are optional
+    }
+  };
+
+  // Blacklist handlers
+  const loadBlacklist = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/blacklist`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setBlacklistedCompanies(data.companies || []);
+    } catch {
+      // silently fail
+    }
+  };
+
+  const handleAddToBlacklist = async () => {
+    if (!newBlacklistInput.trim()) return;
+    setBlacklistLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/blacklist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ companyName: newBlacklistInput.trim() }),
+      });
+      if (res.status === 409) { toast.error('Company already in blacklist'); return; }
+      if (!res.ok) { toast.error('Failed to add company'); return; }
+      setNewBlacklistInput('');
+      await loadBlacklist();
+      toast.success('Company added to blacklist');
+    } catch {
+      toast.error('Failed to add company');
+    } finally {
+      setBlacklistLoading(false);
+    }
+  };
+
+  const handleRemoveFromBlacklist = async (id: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`${API_BASE_URL}/blacklist/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setBlacklistedCompanies(prev => prev.filter(c => c.id !== id));
+    } catch {
+      toast.error('Failed to remove company');
+    }
+  };
+
+  const handleToggleBlacklist = async (enabled: boolean) => {
+    setBlacklistEnabled(enabled);
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`${API_BASE_URL}/job-settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ blacklistEnabled: enabled }),
+      });
+    } catch {
+      toast.error('Failed to update blacklist setting');
     }
   };
 
@@ -2372,23 +2444,6 @@ const Dashboard: React.FC = () => {
                     </h3>
                   </div>
 
-                  {/* Job Search Keywords Input */}
-                  <div className="space-y-2">
-                    <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-2">
-                      <Search className="w-3 h-3" /> Job Search Keywords
-                    </label>
-                    <input
-                      type="text"
-                      value={configForm.keywords}
-                      onChange={(e) => setConfigForm({ ...configForm, keywords: e.target.value })}
-                      className="w-full bg-dark-900 border border-gray-700 rounded-lg py-2.5 px-4 text-white text-sm focus:border-neon-green outline-none"
-                      placeholder="e.g. React Developer, Python, Java"
-                    />
-                    <p className="text-[10px] text-gray-500">
-                      Enter keywords to search for jobs. Leave empty to search all jobs.
-                    </p>
-                  </div>
-
                   {/* Job Search URL Input */}
                   <div className="space-y-2">
                     <label className="text-xs text-gray-400 uppercase font-bold flex items-center gap-2">
@@ -2406,6 +2461,8 @@ const Dashboard: React.FC = () => {
                     </p>
                   </div>
                 </div>
+
+                {/* Blacklist Section - hidden */}
 
                 {/* Save Button with Completion Check */}
                 <div className="space-y-3 mt-6">

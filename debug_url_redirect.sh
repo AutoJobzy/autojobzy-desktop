@@ -63,7 +63,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 if command -v curl &> /dev/null; then
     echo "To test the API, run this command with your JWT token:"
     echo ""
-    echo "curl 'http://localhost:5000/api/job-settings' \\"
+    echo "curl 'https://api.autojobzy.com/api/job-settings' \\"
     echo "  -H 'Authorization: Bearer YOUR_TOKEN_HERE'"
     echo ""
     echo "Look for 'searchUrl' in the response"

@@ -224,7 +224,8 @@ router.get('/stats', authenticateToken, async (req, res) => {
         const dailyTrend = [];
         for (let i = 6; i >= 0; i--) {
             const d = new Date(todayStart.getTime() - i * 86400000);
-            const key = d.toISOString().split('T')[0];
+            // Use local date components (not toISOString which gives UTC) to match MySQL DATE() output
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             const row = trendMap[key] || {};
             dailyTrend.push({
                 date:    key,

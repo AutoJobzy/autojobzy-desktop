@@ -107,7 +107,7 @@ const AutoProfileUpdate: React.FC = () => {
           }]);
         });
 
-        data = await (window as any).electron.startProfileUpdate({ token });
+        data = await (window as any).electron.startProfileUpdate({ token, apiBaseUrl: API_BASE_URL });
 
         // Clean up listener after done
         if (logSub) (window as any).electron.removeProfileUpdateLogListener?.(logSub);

@@ -186,6 +186,14 @@ const JobSettings = sequelize.define('JobSettings', {
         field: 'last_profile_update',
         comment: 'Timestamp of last Naukri profile update',
     },
+    // Blacklist Settings
+    blacklistEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        allowNull: true,
+        field: 'blacklist_enabled',
+        comment: 'Whether blacklisted companies should be skipped during automation',
+    },
     // Timestamps
     createdAt: {
         type: DataTypes.DATE,

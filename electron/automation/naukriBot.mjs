@@ -27,6 +27,22 @@ function delay(ms) {
 }
 
 /**
+ * Format date from YYYY-MM-DD to DD/MM/YYYY
+ */
+function formatDateToDDMMYYYY(dateString) {
+    if (!dateString) return null;
+    try {
+        const date = new Date(dateString);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Find matching skill from database
  */
 function findMatchingSkill(question) {
@@ -96,7 +112,13 @@ function isValidInterviewQuestion(question) {
         'showing interest', 'successfully apply'
     ];
 
-    const lowerQ = question.toLowerCase();
+    const lowerQ = question.toLowerCase().trim();
+
+    // ✅ Always treat DOB/date-of-birth questions as valid, regardless of '?' or word count
+    if (lowerQ.includes('birth') || lowerQ.includes('dob') || lowerQ.includes('date of birth')) {
+        return true;
+    }
+
     for (const greet of greetings) {
         if (lowerQ.includes(greet)) {
             return false; // It's a greeting or non-question
@@ -127,6 +149,29 @@ function getIntelligentAnswer(question) {
     }
 
     const lowerQuestion = question.toLowerCase();
+
+    // ✅ DOB — fetch from DB and format as DD/MM/YYYY
+    if (lowerQuestion.includes('birth') || lowerQuestion.includes('dob') || lowerQuestion.includes('date of birth')) {
+        const dob = userAnswersData?.dob;
+        if (dob) {
+            const ans = formatDateToDDMMYYYY(dob);
+            console.log(`✓ DOB: "${question}" → "${ans}"`);
+            return ans;
+        }
+        console.log(`⚠️ DOB question but no DOB in DB: "${question}"`);
+        return '';
+    }
+
+    // ✅ Skip questions that should not be answered
+    const skipPatterns = [
+        'current company', 'current employer', 'company name',
+        'employer name', 'organization name', 'organisation name',
+        'where do you work', 'where are you working'
+    ];
+    if (skipPatterns.some(k => lowerQuestion.includes(k))) {
+        console.log(`⏭️ Skipped: "${question}"`);
+        return '';
+    }
 
     // ✅ STEP 1: Check if question is skill-related
     const matchingSkill = findMatchingSkill(question);
@@ -806,7 +851,84 @@ export async function runNaukriAutomation(config, onLog = () => {}) {
 
                 if (externalApply || !applyBtn) {
                     addLog('Skipping job (external apply or no button)', 'warning');
-                    jobResults.push(jobResult); // Save skipped job
+                    jobResults.push(jobResult);
+                    await jobPage.close();
+                    await delay(1000);
+                    continue;
+                }
+
+                // ========== MATCH SCORE VALIDATION ==========
+                let canApply = false;
+                try {
+                    // Wait up to 10s for match score section to appear
+                    await jobPage.waitForSelector('[class*="match-score"]', { timeout: 10000 });
+
+                    const matchData = await jobPage.evaluate(() => {
+                        const container = document.querySelector('[class*="match-score"]');
+                        if (!container) return { error: 'container_not_found' };
+
+                        // Use only partial selector — resilient to Naukri's hashed class names
+                        const blocks = Array.from(container.querySelectorAll('[class*="MS__details"]'));
+
+                        if (blocks.length < 4) {
+                            return { error: `only_${blocks.length}_blocks_found` };
+                        }
+
+                        // Returns true if the block's <i> icon has ni-icon-check_circle class
+                        const hasCheck = (el) => {
+                            if (!el) return false;
+                            const icon = el.querySelector('i');
+                            if (!icon) return false;
+                            return icon.classList.contains('ni-icon-check_circle');
+                        };
+
+                        const iconClass = (el) => el?.querySelector('i')?.className?.trim() || 'NO_ICON';
+
+                        // index 0 → Early Applicant  (IGNORED)
+                        // index 1 → Key Skills        (required ✓)
+                        // index 2 → Location          (required ✓)
+                        // index 3 → Work Experience   (required ✓)
+                        return {
+                            keySkills:  hasCheck(blocks[1]),
+                            location:   hasCheck(blocks[2]),
+                            experience: hasCheck(blocks[3]),
+                            _debug: {
+                                totalBlocks: blocks.length,
+                                block1: iconClass(blocks[1]),
+                                block2: iconClass(blocks[2]),
+                                block3: iconClass(blocks[3]),
+                            },
+                        };
+                    });
+
+                    if (!matchData || matchData.error) {
+                        addLog(`⚠️ Match check failed: ${matchData?.error || 'unknown'} — skipping`, 'warning');
+                    } else {
+                        addLog(
+                            `[Match] Skills:${matchData._debug.block1} | Location:${matchData._debug.block2} | Exp:${matchData._debug.block3}`,
+                            'info'
+                        );
+
+                        canApply = matchData.keySkills && matchData.location && matchData.experience;
+
+                        if (canApply) {
+                            addLog('✅ Good match — Skills ✓ Location ✓ Experience ✓', 'success');
+                            jobResult.matchStatus = 'Good Match';
+                        } else {
+                            const failed = [];
+                            if (!matchData.keySkills)  failed.push('Skills ✗');
+                            if (!matchData.location)   failed.push('Location ✗');
+                            if (!matchData.experience) failed.push('Experience ✗');
+                            addLog(`⏭️ Poor match — ${failed.join(', ')} — skipping`, 'warning');
+                            jobResult.matchStatus = 'Poor Match';
+                        }
+                    }
+                } catch (err) {
+                    addLog(`⚠️ Match score section not found (${err.message}) — skipping job`, 'warning');
+                }
+
+                if (!canApply) {
+                    jobResults.push(jobResult);
                     await jobPage.close();
                     await delay(1000);
                     continue;

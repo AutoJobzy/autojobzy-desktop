@@ -29,6 +29,7 @@ import superadminRoutes from './routes/superadmin.js';
 import instituteAdminRoutes from './routes/instituteAdmin.js';
 import resumeUploadRoutes from './routes/resumeUpload.js';
 import aiRoutes from './routes/ai.js';
+import blacklistRoutes from './routes/blacklist.js';
 import { initScheduler } from './services/schedulerService.js';
 
 // Import models to ensure they're loaded
@@ -50,6 +51,7 @@ import './models/InstituteAdmin.js';
 import './models/InstituteStaff.js';
 import './models/InstituteStudent.js';
 import './models/associations.js'; // Define model associations
+import './models/BlacklistedCompany.js';
 
 // Configure dotenv with explicit path resolution
 // In production (Electron), .env is in resources/ directory
@@ -225,6 +227,7 @@ app.use('/api/superadmin', superadminRoutes);
 app.use('/api/institute-admin', instituteAdminRoutes);
 app.use('/api/resume', resumeUploadRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/blacklist', blacklistRoutes);
 
 // ============= ERROR HANDLING =============
 

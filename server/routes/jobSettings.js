@@ -201,6 +201,7 @@ router.post('/', authenticateToken, async (req, res) => {
             maxPages,
             yearsOfExperience,
             dob,
+            blacklistEnabled,
         } = req.body;
 
         // Validate that provided fields are non-empty
@@ -262,6 +263,7 @@ router.post('/', authenticateToken, async (req, res) => {
         if (maxPages !== undefined) updateData.maxPages = maxPages;
         if (yearsOfExperience !== undefined) updateData.yearsOfExperience = yearsOfExperience;
         if (dob !== undefined) updateData.dob = dob || null;
+        if (blacklistEnabled !== undefined) updateData.blacklistEnabled = blacklistEnabled;
 
         // Update only if there are fields to update
         if (Object.keys(updateData).length > 0) {

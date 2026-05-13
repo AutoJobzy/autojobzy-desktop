@@ -1,6 +1,7 @@
 
 import schedule from 'node-schedule';
 import JobSettings from '../models/JobSettings.js';
+import JobApplicationResult from '../models/JobApplicationResult.js';
 import { startAutomation } from '../autoApply.js';
 import User from '../models/User.js';
 import { setUserData, initializeSkillsFromDB } from '../aiAnswer.js';
@@ -152,8 +153,40 @@ export async function initScheduler() {
         }
 
         console.log(`✅ Scheduler initialized. Loaded ${count} pending jobs and ${profileUpdateCount} profile updates.`);
+
+        // Schedule daily history cleanup at 2:00 AM
+        schedule.scheduleJob('0 2 * * *', runHistoryCleanup);
+        console.log('🗑️  History cleanup scheduled daily at 2:00 AM');
+
+        // Run once on startup to clean existing stale data
+        await runHistoryCleanup();
+
     } catch (error) {
         console.error('❌ Failed to initialize scheduler:', error);
+    }
+}
+
+// ========================================================================
+// HISTORY CLEANUP — Delete records older than 1 month (runs daily at 2 AM)
+// ========================================================================
+
+/**
+ * Delete job_application_results older than 1 month for all users
+ */
+async function runHistoryCleanup() {
+    try {
+        const cutoff = new Date();
+        cutoff.setMonth(cutoff.getMonth() - 1);
+
+        const deleted = await JobApplicationResult.destroy({
+            where: {
+                datetime: { [Op.lt]: cutoff },
+            },
+        });
+
+        console.log(`[History Cleanup] ✅ Deleted ${deleted} records older than ${cutoff.toDateString()}`);
+    } catch (error) {
+        console.error('[History Cleanup] ❌ Failed:', error.message);
     }
 }
 

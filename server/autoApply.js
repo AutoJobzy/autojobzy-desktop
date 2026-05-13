@@ -22,6 +22,7 @@ import {
 } from './aiAnswer.js';
 import sequelize from './db/config.js';
 import JobApplicationResult from './models/JobApplicationResult.js';
+import BlacklistedCompany from './models/BlacklistedCompany.js';
 import { launchBrowser } from './utils/puppeteerHelper.js';
 
 // State management for automation
@@ -289,6 +290,19 @@ async function fetchUserPreferences(userId) {
             { replacements: [userId] }
         );
 
+        // Fetch blacklist if enabled
+        const blacklistEnabled = jobSettings[0]?.blacklist_enabled === 1 || jobSettings[0]?.blacklist_enabled === true;
+        let blacklistSet = new Set();
+
+        if (blacklistEnabled) {
+            const blacklistedRows = await BlacklistedCompany.findAll({
+                where: { userId },
+                attributes: ['normalizedName'],
+            });
+            blacklistSet = new Set(blacklistedRows.map(r => r.normalizedName));
+            addLog(`Blacklist loaded: ${blacklistSet.size} companies`, 'info');
+        }
+
         const preferences = {
             targetRole: jobSettings[0]?.target_role || '',
             location: jobSettings[0]?.location || '',
@@ -298,7 +312,9 @@ async function fetchUserPreferences(userId) {
             experience: jobSettings[0]?.years_of_experience || 0,
             keywords: jobSettings[0]?.search_keywords || '',
             skills: skills.map(s => s.skill_name) || [],
-            filters: filters[0]?.selected_filters ? JSON.parse(filters[0].selected_filters) : {}
+            filters: filters[0]?.selected_filters ? JSON.parse(filters[0].selected_filters) : {},
+            blacklistEnabled,
+            blacklistSet,
         };
 
         return preferences;
@@ -313,6 +329,22 @@ async function fetchUserPreferences(userId) {
             filters: {}
         };
     }
+}
+
+/**
+ * Normalize company name for blacklist matching
+ * Lowercase + trim + remove common suffixes (Pvt Ltd, Ltd, Inc, etc.)
+ * @param {string} name - Company name
+ * @returns {string} Normalized name
+ */
+function normalizeCompanyName(name) {
+    if (!name) return '';
+    return name
+        .toLowerCase()
+        .trim()
+        .replace(/\b(pvt\.?\s*ltd\.?|private\s+limited|ltd\.?|inc\.?|llp|llc|limited|co\.?)\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 /**
@@ -1460,6 +1492,19 @@ export async function startAutomation(options = {}) {
                 // Scrape job details from the page
                 const scrapedDetails = await scrapeJobDetails(jobPage);
 
+                // ========== BLACKLIST CHECK ==========
+                if (userPrefs?.blacklistEnabled && userPrefs?.blacklistSet?.size > 0) {
+                    const normalizedJobCompany = normalizeCompanyName(scrapedDetails.companyName);
+                    if (normalizedJobCompany && userPrefs.blacklistSet.has(normalizedJobCompany)) {
+                        addLog(`🚫 Skipped: Blacklisted company — "${scrapedDetails.companyName}"`, 'warning');
+                        totalJobsSkipped++;
+                        skipReasons['Blacklisted'] = (skipReasons['Blacklisted'] || 0) + 1;
+                        await jobPage.close();
+                        await delay(1000);
+                        continue;
+                    }
+                }
+
                 let canApply = false;
                 let match = null;
                 let matchResult = {
@@ -1474,52 +1519,45 @@ export async function startAutomation(options = {}) {
 
                 // Check match score
                 try {
-                    await jobPage.waitForSelector('[class*="match-score"], [class*="MS__details"]', { timeout: 5000 });
+                    // Wait up to 10s for match score section to appear
+                    await jobPage.waitForSelector('[class*="match-score"]', { timeout: 10000 });
 
                     const matchData = await jobPage.evaluate(() => {
-                        // Use partial class selectors — resilient to Naukri's hashed dynamic class names
                         const container = document.querySelector('[class*="match-score"]');
                         if (!container) return { error: 'container_not_found' };
 
-                        const blocks = container.querySelectorAll('[class*="MS__details"]');
-                        if (blocks.length < 4) return { error: `only_${blocks.length}_blocks_found` };
+                        // Use only partial selector — resilient to Naukri's hashed class names
+                        const blocks = Array.from(container.querySelectorAll('[class*="MS__details"]'));
 
-                        // HTML: <div class="styles_MS__details__iS7mj">
-                        //         <i class="ni-icon-check_circle"></i>
-                        //         <span>Key Skills</span>
-                        //       </div>
-                        // icon class is directly on <i> tag — single class, no nesting
+                        if (blocks.length < 4) {
+                            return { error: `only_${blocks.length}_blocks_found` };
+                        }
 
-                        const getIconClass = (el) => {
-                            if (!el) return 'NO_BLOCK';
+                        // Returns true if the block's <i> icon has ni-icon-check_circle class
+                        const hasCheck = (el) => {
+                            if (!el) return false;
                             const icon = el.querySelector('i');
-                            return icon ? icon.className.trim() : 'NO_ICON';
+                            if (!icon) return false;
+                            return icon.classList.contains('ni-icon-check_circle');
                         };
 
-                        const hasCheck = (el) => !!el?.querySelector('i.ni-icon-check_circle');
+                        const iconClass = (el) => el?.querySelector('i')?.className?.trim() || 'NO_ICON';
 
-                        // block[0] Early Applicant — ignored for canApply decision
-                        const earlyApplicant = hasCheck(blocks[0]);
-
-                        // block[1] Key Skills — compulsory
-                        const keySkills  = hasCheck(blocks[1]);
-                        // block[2] Location — compulsory
-                        const location   = hasCheck(blocks[2]);
-                        // block[3] Experience — compulsory
-                        const experience = hasCheck(blocks[3]);
-
+                        // index 0 → Early Applicant  (IGNORED)
+                        // index 1 → Key Skills        (required ✓)
+                        // index 2 → Location          (required ✓)
+                        // index 3 → Work Experience   (required ✓)
                         return {
-                            earlyApplicant,
-                            keySkills,
-                            location,
-                            experience,
-                            // debug: exact icon class found in each block
+                            earlyApplicant: hasCheck(blocks[0]),
+                            keySkills:      hasCheck(blocks[1]),
+                            location:       hasCheck(blocks[2]),
+                            experience:     hasCheck(blocks[3]),
                             _icons: {
-                                block0: getIconClass(blocks[0]),
-                                block1: getIconClass(blocks[1]),
-                                block2: getIconClass(blocks[2]),
-                                block3: getIconClass(blocks[3]),
-                            }
+                                block0: iconClass(blocks[0]),
+                                block1: iconClass(blocks[1]),
+                                block2: iconClass(blocks[2]),
+                                block3: iconClass(blocks[3]),
+                            },
                         };
                     });
 
